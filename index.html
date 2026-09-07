@@ -49,7 +49,8 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
 
 /* ---- wordmark ---- */
 #brand{margin:22px 0 26px;text-align:center}
-#brand svg{width:min(300px,80vw);height:auto;display:block;margin:0 auto}
+#brand svg{width:min(300px,80vw);height:auto;display:block;margin:0 auto;
+  -webkit-text-size-adjust:100%;text-size-adjust:100%}
 .wm-txt{font-family:inherit;font-weight:800;font-size:52px;letter-spacing:-.02em;fill:var(--chalk)}
 .wm-dot{fill:var(--signal)}
 .wm-seg{stroke:var(--signal);stroke-width:7;stroke-linecap:round}
@@ -59,6 +60,8 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
   .wm-dot.d2{animation-delay:.22s}
   .wm-seg{stroke-dasharray:60;stroke-dashoffset:60;animation:draw .5s cubic-bezier(.2,.7,.3,1) .45s forwards}
   @keyframes pop{to{opacity:1}}
+  .badge{animation:bestin .34s cubic-bezier(.2,1.4,.4,1) both}
+  @keyframes bestin{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
   @keyframes draw{to{stroke-dashoffset:0}}
 }
 
@@ -96,14 +99,35 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
 .cell .ch{display:flex;align-items:baseline;gap:6px;margin-top:7px}
 .cell .cn{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}
 .cell .cr{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
-.cell.hit{border-color:var(--lock)}
-.cell.hit .cr{color:var(--lock)}
+.cell{--lc:var(--lock)}
+.cell .lm{font-size:14px;font-weight:800;color:var(--lc);flex:0 0 auto}
+.cell .rates{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;padding-top:6px;
+  border-top:1px solid var(--rule);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.tro{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;
+  margin-bottom:6px;background:var(--panel2);border:1.5px solid transparent}
+.tro .sw{flex:0 0 auto;width:22px;height:22px;border-radius:50%;box-shadow:0 0 10px currentColor}
+.tro .tn{flex:0 0 auto;font-weight:800;font-size:14px}
+.tro .td{flex:1;font-size:11.5px;color:var(--dim);font-weight:600;line-height:1.35}
+.tro .tc{flex:0 0 auto;font-weight:800;color:var(--lock)}
+.tro.sel{border-color:var(--lock)}
+.tro.lock{opacity:.5}
+.tro.lock .sw{background:none!important;border:1.5px dashed var(--dim);box-shadow:none}
+.badge{display:inline-block;margin-left:10px;padding:3px 9px;border-radius:999px;
+  font-size:12px;font-weight:800;letter-spacing:.08em;vertical-align:middle;
+  color:#0a0d14;background:var(--gold);box-shadow:0 0 16px rgba(232,194,106,.55)}
+#testCount button{display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.05}
+#testCount .cn{font-size:15px;font-weight:800}
+#testCount .cb{font-size:9.5px;font-weight:700;opacity:.75;font-variant-numeric:tabular-nums}
+.cell.hit{border-color:var(--lc)}
+.cell.hit .cr{color:var(--lc)}
 .gain{font-size:11px;font-weight:800;color:var(--lock)}
 
 /* ---- progress pips ---- */
-.pips{display:flex;gap:5px;align-items:center;margin:2px 0 10px}
-.pip{flex:1;height:5px;border-radius:3px;background:var(--rule)}
-.pip.on{background:var(--lock)}
+.pips{display:flex;gap:5px;align-items:center;margin:2px 0 10px;flex-wrap:wrap}
+.pip{flex:1 1 0;min-width:28px;height:22px;border-radius:7px;display:flex;
+  align-items:center;justify-content:center;font-size:12px;font-weight:800;
+  color:var(--lc);border:1.5px solid var(--lc);opacity:.4;background:transparent}
+.pip.on{opacity:1;color:#0a0d14;background:var(--lc);border-color:var(--lc)}
 
 .big{font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
 .rank{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--panel2)}
@@ -127,13 +151,15 @@ dialog li{margin-bottom:7px}
   <!-- ============ MENU ============ -->
   <section id="sc-menu">
     <div id="brand">
-      <svg viewBox="0 0 300 78" role="img" aria-label="LINE MATCH">
-        <text class="wm-txt" x="0" y="40">L</text>
-        <circle class="wm-dot" cx="41" cy="12" r="5"/>
-        <circle class="wm-dot d2" cx="41" cy="40" r="5"/>
-        <line class="wm-seg" x1="41" y1="12" x2="41" y2="40"/>
-        <text class="wm-txt" x="52" y="40">NE</text>
-        <text class="wm-txt" x="0" y="74" style="font-size:26px;letter-spacing:.34em">MATCH</text>
+      <svg id="wmSvg" viewBox="0 -9 300 87" role="img" aria-label="LINE MATCH">
+        <g id="wmG">
+          <text class="wm-txt" id="wmL" x="0" y="40">L</text>
+          <circle class="wm-dot" id="wmD1" cx="41" cy="4" r="5"/>
+          <circle class="wm-dot d2" id="wmD2" cx="41" cy="40" r="5"/>
+          <line class="wm-seg" id="wmS" x1="41" y1="4" x2="41" y2="40"/>
+          <text class="wm-txt" id="wmNE" x="52" y="40">NE</text>
+          <text class="wm-txt" id="wmM" x="0" y="74" style="font-size:26px;letter-spacing:.34em">MATCH</text>
+        </g>
       </svg>
       <div class="tag">直線だけで描く、線あてゲーム。2〜8人</div>
     </div>
@@ -145,7 +171,11 @@ dialog li{margin-bottom:7px}
         <input id="inCode" maxlength="5" placeholder="あいことば" autocapitalize="characters" style="flex:1.2">
         <button id="btnJoin" style="flex:.8">参加する</button>
       </div>
-      <button class="ghost" id="btnRules">あそびかた</button>
+      <button id="btnSolo">ひとりで遊ぶ</button>
+      <div class="row">
+        <button class="ghost" id="btnRules" style="flex:1">あそびかた</button>
+        <button class="ghost" id="btnOpt" style="flex:1">オプション</button>
+      </div>
       <div class="small" id="netStatus"></div>
     </div>
   </section>
@@ -179,6 +209,16 @@ dialog li{margin-bottom:7px}
         <div class="small" id="drawSub"></div>
       </div>
       <div class="pips" id="drawPips"></div>
+      <div id="testBar" class="hide">
+        <div class="small" id="testCap"></div>
+        <div class="row" id="testCount" style="margin-top:6px"></div>
+        <div class="row" id="testOpt" style="margin-top:6px">
+          <label class="small" style="display:flex;gap:8px;align-items:center;flex:1">
+            <input type="checkbox" id="chkPeek" checked style="width:auto"> お題を重ねて表示
+          </label>
+          <button class="ghost" id="btnTestReset" style="flex:0 0 auto;padding:9px 12px">お題を作り直す</button>
+        </div>
+      </div>
       <div class="boardwrap"><canvas id="board" class="board"></canvas></div>
       <div class="hint" id="drawHint"></div>
       <div class="row">
@@ -211,7 +251,7 @@ dialog li{margin-bottom:7px}
   <section id="sc-clear" class="hide">
     <div class="stack">
       <div>
-        <h2 style="color:var(--lock)">CLEAR</h2>
+        <h2 style="color:var(--lock)">CLEAR<span id="bestBadge" class="badge hide">BEST</span></h2>
         <div class="small" id="clearSub"></div>
       </div>
       <div class="boardwrap"><canvas id="clearBoard" class="board"></canvas></div>
@@ -237,13 +277,24 @@ dialog li{margin-bottom:7px}
   <ol>
     <li><b>親</b>がお題の図形を描きます。使える直線は<b>子の人数</b>と同じ本数です。子には見えません。</li>
     <li><b>子</b>は図形を想像して、そのうちの<b>直線を1本だけ</b>自分のキャンバスに描きます。</li>
-    <li>全員そろったら親が「結果を見る」を押します。全員のキャンバスが同時に公開され、お題と重なった部分が<b style="color:var(--signal)">赤</b>、外れた部分が白で表示されます。一致率も出ます。</li>
-    <li>一致率が<b>85%</b>を超えた線は<b style="color:var(--lock)">確定</b>し、全員に見えるようになります。最初に確定させた人が<b>子の人数分</b>の得点。</li>
+    <li>全員そろったら親が「結果を見る」を押します。全員のキャンバスが同時に公開され、お題と重なった部分が<b>その線の色</b>（<b style="color:#ff4136">①</b><b style="color:#4fa3ff">②</b><b style="color:#ffd23f">③</b>…）、外れた部分が白で表示されます。一致率も出ます。</li>
+    <li>一致率が<b>85%</b>を超えた線は<b>確定</b>し、その線の色で全員に見えるようになります。最初に確定させた人が<b>子の人数分</b>の得点。</li>
     <li>お題の線がすべて確定したらCLEAR。<b>かかったターン数がそのまま親の得点</b>になります。</li>
     <li>親は1人1回ずつ。全員が親を終えたらゲーム終了、得点を比べます。</li>
   </ol>
   <p class="small">線は始点と終点を決めて引きます。タップで始点、もう一度タップで終点。ドラッグでも引けます。短すぎる線は引けません。</p>
+  <p class="small"><b>ひとりで遊ぶ</b>：本数をえらぶと、ランダムな角度と長さのお題が用意されます。何ターンで解読できるか挑戦できます。
+    条件を満たすと<b>トロフィー</b>が増え、オプションから自分の線の色を変えられます。記録はこの端末に残ります。</p>
   <button class="primary" style="width:100%" onclick="document.getElementById('dlgRules').close()">閉じる</button>
+</dialog>
+
+<dialog id="dlgOpt">
+  <h3>オプション</h3>
+  <p class="small" style="margin:0 0 10px">自分が描く線の色を選べます。トロフィーを獲得すると色が増えます。<br>
+    獲得した記録はこの端末に保存され、ページを更新しても残ります。</p>
+  <div id="optColors"></div>
+  <p class="small" id="optNote" style="margin:12px 0 14px"></p>
+  <button class="primary" style="width:100%" onclick="document.getElementById('dlgOpt').close()">閉じる</button>
 </dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
@@ -262,6 +313,104 @@ const MAX_PL   = 8;
 const MIN_PL   = 2;
 const PREFIX   = 'linematch-r1-';
 const CODE_CH  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+/* お題の線は引かれた順に色と番号を持つ（最大7本＝8人プレイ） */
+const LINE_COLORS = ['#ff4136','#4fa3ff','#ffd23f','#5ee08a','#c084fc','#ff8a3d','#3ee0d0'];
+const LINE_MARKS  = ['①','②','③','④','⑤','⑥','⑦'];
+function lineColor(i){ return LINE_COLORS[(i|0)%LINE_COLORS.length]; }
+function lineMark(i){ return LINE_MARKS[(i|0)%LINE_MARKS.length]; }
+/* テストルーム。O は あいことば の文字集合に無いので、通常の部屋と衝突しない。 */
+const TEST_CODE = 'CHURO';
+
+/* ============================================================
+   トロフィーと端末保存
+   ============================================================ */
+/* 保存キーにはバージョンを付けない。HTML を差し替えても同じ鍵で読めるようにするため。
+   読み込みは既定値へのマージなので、将来この版が知らない項目が入っていても消えない。 */
+const STORE_KEY = 'linematch';
+const MY_DEFAULT = '#eef1f6';
+const TROPHIES = [
+  {id:null,    color:MY_DEFAULT, name:'白',   how:'最初から使えます'},
+  {id:'first', color:'#7ef0dc',  name:'ミント', how:'線を1本はじめて確定させる'},
+  {id:'acc95', color:'#a8e063',  name:'若草', how:'一致率 95% 以上を出す'},
+  {id:'acc99', color:'#ffd76a',  name:'金',   how:'一致率 99% 以上を出す'},
+  {id:'solo3', color:'#7cc4ff',  name:'空',   how:'ソロで3本のお題を解読する'},
+  {id:'solo5', color:'#c79bff',  name:'藤',   how:'ソロで5本のお題を解読する'},
+  {id:'solo7', color:'#ff8a6b',  name:'珊瑚', how:'ソロで7本のお題を解読する'},
+  {id:'flaw',  color:'#ff9ecb',  name:'桜',   how:'ソロで3本以上を、1本も外さずに解読する'},
+  {id:'t30',   color:'#9fb3d1',  name:'鋼',   how:'確定させた線が累計30本になる'}
+];
+let ST={unlocked:[],color:MY_DEFAULT,lines:0,best:{}};
+function loadStore(){
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(raw){ const o=JSON.parse(raw); if(o&&typeof o==='object') ST=Object.assign(ST,o); }
+  }catch(e){}                                   // 保存が使えない環境でも遊べるようにする
+  if(!Array.isArray(ST.unlocked)) ST.unlocked=[];
+  if(typeof ST.lines!=='number'||!(ST.lines>=0)) ST.lines=0;
+  if(!ST.best||typeof ST.best!=='object'||Array.isArray(ST.best)) ST.best={};
+  if(!isOwned(ST.color)) ST.color=MY_DEFAULT;   // 未獲得の色が入っていたら白に戻す（記録は消さない）
+}
+function saveStore(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(ST)); }catch(e){} }
+function isOwned(color){
+  const t=TROPHIES.find(t=>t.color===color);
+  return !!t && (t.id===null || ST.unlocked.indexOf(t.id)>=0);
+}
+function myColor(){ return isOwned(ST.color)?ST.color:MY_DEFAULT; }
+/* ソロのベスト＝そのお題本数を解読できた最小ターン数。理論上の最短は本数と同じ。 */
+function bestOf(n){ const v=ST.best[n]; return (typeof v==='number'&&v>0)?v:0; }
+function recordBest(n,turn){
+  const prev=bestOf(n);
+  if(prev && turn>=prev) return false;
+  ST.best[n]=turn; saveStore();
+  return true;                       // 更新できた＝ベスト更新
+}
+function unlock(id,got){
+  if(!id || ST.unlocked.indexOf(id)>=0) return false;
+  ST.unlocked.push(id);
+  const t=TROPHIES.find(t=>t.id===id);
+  if(t&&got) got.push(t.name);
+  return true;
+}
+let pendingGot=[];
+function announce(got){
+  if(got&&got.length) toast('トロフィー獲得：'+got.join('・')+'　オプションで線の色に使えます');
+}
+let sessionId=0, scoredKey=null;
+/* 自分の結果からトロフィーの達成を見る。同じターンを二重に数えないようキーで抑える。 */
+function checkAchievements(){
+  if(!V||!V.results||!V.results.length) return;
+  const key=sessionId+':'+V.round+':'+V.turn;
+  if(key===scoredKey) return;
+  scoredKey=key;
+  const mine=V.results.find(r=>r.id===V.me);
+  if(!mine) return;
+  const got=[];
+  if(mine.got){
+    ST.lines++;
+    unlock('first',got);
+    if(ST.lines>=30) unlock('t30',got);
+  }
+  if(mine.rate>=95) unlock('acc95',got);
+  if(mine.rate>=99) unlock('acc99',got);
+  saveStore();
+  announce(pendingGot.concat(got));      // 同じターンの獲得はまとめて1回だけ知らせる
+  pendingGot=[];
+}
+function renderOptions(){
+  const cur=myColor();
+  $('optColors').innerHTML=TROPHIES.map(t=>{
+    const on=(t.id===null)||ST.unlocked.indexOf(t.id)>=0;
+    const sel=on&&cur===t.color;
+    return '<button class="tro'+(on?'':' lock')+(sel?' sel':'')+'" data-c="'+t.color+'"'+(on?'':' disabled')+'>'+
+      '<span class="sw" style="background:'+t.color+';color:'+t.color+'"></span>'+
+      '<span class="tn">'+t.name+'</span>'+
+      '<span class="td">'+t.how+'</span>'+
+      (sel?'<span class="tc">使用中</span>':'')+'</button>';
+  }).join('');
+  const all=TROPHIES.length-1;
+  const have=TROPHIES.filter(t=>t.id&&ST.unlocked.indexOf(t.id)>=0).length;
+  $('optNote').textContent='トロフィー '+have+' / '+all+'　　確定させた線：累計 '+ST.lines+' 本';
+}
 
 /* ============================================================
    幾何：一致率と赤い部分の計算
@@ -290,22 +439,55 @@ function matchRate(a,b){
   const p=coverage(a,b), r=coverage(b,a);
   return (p+r)>0 ? 2*p*r/(p+r) : 0;
 }
-/** 描いた線のうち、お題「図形」と重なっている区間（＝赤く描く部分）。
- *  お題の線どれか1本にでも重なっていれば赤くなる。 */
+/** 描いた線のうち、お題「図形」と重なっている区間。
+ *  区間ごとに「どのお題線に重なったか」を i として持ち、その線の色で描く。
+ *  複数のお題線が近い場所では、いちばん近い線に属させる。
+ *
+ *  ただの交差（角度がついている）を、なぞれているのと同じ太さで塗ると誤解を招く。
+ *  判定の許容距離 TOL は「線に沿っているか」を見るためのものなので、
+ *  そのまま塗ると交点まわりが 2*TOL/sinθ ぶんも色づいてしまう。
+ *  そこで塗る区間の長さを 2*DRAW_H/sinθ ＝ 実際に線が重なって見える幅までに詰める。
+ *  平行に近いほど長く残り（sinθ→0 で無制限）、直交に近いほど交点だけになる。 */
+const DRAW_H = 3;
 function redParts(a,targets){
   const ts=Array.isArray(targets)?targets:[targets];
-  const out=[]; let s=null;
-  for(let i=0;i<=SAMPLES;i++){
-    const t=i/SAMPLES, p=ptOn(a,t);
-    const on = ts.some(b=>segDist(p.x,p.y,b.x1,b.y1,b.x2,b.y2)<=TOL);
-    if(on && s===null) s=t;
-    if(!on && s!==null){ out.push([s,(i-1)/SAMPLES]); s=null; }
+  const la=lenOf(a);
+  if(!(la>0)) return [];
+  const ux=(a.x2-a.x1)/la, uy=(a.y2-a.y1)/la;
+  const sins=ts.map(b=>{
+    const lb=lenOf(b); if(!(lb>0)) return 1;
+    return Math.min(1,Math.abs(ux*(b.y2-b.y1)/lb - uy*(b.x2-b.x1)/lb));  // |外積|＝sinθ
+  });
+  // 1) TOL 以内に入る区間を、いちばん近いお題線ごとにまとめる
+  const runs=[]; let s=null, si=-1, bT=0, bD=Infinity;
+  const flush=t1=>{ if(s!==null){ runs.push({t0:s,t1,i:si,tc:bT}); s=null; si=-1; } };
+  for(let k=0;k<=SAMPLES;k++){
+    const t=k/SAMPLES, p=ptOn(a,t);
+    let bi=-1, bd=TOL;
+    for(let j=0;j<ts.length;j++){
+      const d=segDist(p.x,p.y,ts[j].x1,ts[j].y1,ts[j].x2,ts[j].y2);
+      if(d<=bd){ bd=d; bi=j; }
+    }
+    if(bi!==si){
+      flush((k-1)/SAMPLES);
+      if(bi>=0){ s=t; si=bi; bD=bd; bT=t; }
+    }else if(bi>=0 && bd<bD){ bD=bd; bT=t; }
   }
-  if(s!==null) out.push([s,1]);
-  return out.map(([t0,t1])=>{
+  flush(1);
+  // 2) 交差しているだけの区間を、重なって見える長さまで詰める（中心は最接近点）
+  const out=[];
+  for(const r of runs){
+    let t0=r.t0, t1=r.t1;
+    const sn=sins[r.i];
+    if(sn>1e-6 && (t1-t0)*la > 2*DRAW_H/sn){
+      const h=DRAW_H/(sn*la);
+      t0=Math.max(r.t0,r.tc-h); t1=Math.min(r.t1,r.tc+h);
+    }
     const p0=ptOn(a,t0), p1=ptOn(a,t1);
-    return {x1:p0.x,y1:p0.y,x2:p1.x,y2:p1.y};
-  }).filter(s2=>lenOf(s2)>0.5);
+    const seg={x1:p0.x,y1:p0.y,x2:p1.x,y2:p1.y,i:r.i};
+    if(lenOf(seg)>0.5) out.push(seg);
+  }
+  return out;
 }
 function validLine(l){
   return l && [l.x1,l.y1,l.x2,l.y2].every(v=>typeof v==='number' && isFinite(v)
@@ -341,6 +523,7 @@ function toHost(msg){ if(isHost) hostRecv(myId,msg); else send(hostConn,msg); }
 
 /* ---------- 部屋をつくる（この端末が全処理を行う） ---------- */
 function createRoom(){
+  sessionId++;
   const name=readName(); if(!name) return;
   if(typeof Peer==='undefined'){ net('通信ライブラリを読み込めませんでした。オンラインで開き直してください。'); return; }
   myName=name; isHost=true; roomCode=makeCode(); myId='HOST';
@@ -373,8 +556,10 @@ function setupHostConn(conn){
 
 /* ---------- 部屋に入る ---------- */
 function joinRoom(){
-  const name=readName(); if(!name) return;
   const code=(document.getElementById('inCode').value||'').trim().toUpperCase();
+  if(code===TEST_CODE){ startTestRoom(); return; }
+  sessionId++;
+  const name=readName(); if(!name) return;
   if(code.length<4){ net('あいことばを入力してください。'); return; }
   if(typeof Peer==='undefined'){ net('通信ライブラリを読み込めませんでした。オンラインで開き直してください。'); return; }
   myName=name; isHost=false; roomCode=code;
@@ -536,7 +721,7 @@ function resolveTurn(){
       if(p){ p.score+=G.lineCount; G.gain[s.id]=(G.gain[s.id]||0)+G.lineCount; }
       got=true;
     }
-    res.push({id:s.id,name:nameOf(s.id),line:s.line,red,rate:Math.round(rate*1000)/10,got});
+    res.push({id:s.id,name:nameOf(s.id),line:s.line,red,rate:Math.round(rate*1000)/10,got,idx:best});
   }
   G.results=res;
   if(G.confirmed.length&&G.confirmed.every(Boolean)){
@@ -601,6 +786,146 @@ function broadcast(){
 }
 
 /* ============================================================
+   テストルーム（通信なし・1人用）
+   自分でお題を決めて、そのまま子プレイヤーとして線を引いて判定を試せる。
+   通常の対戦と同じ判定関数をそのまま通すので、見え方も点のつき方も本番と同じ。
+   ============================================================ */
+let T=null;
+/* ランダムな角度・長さでお題をつくる。盤の内側に収め、似た線が並ばないようにする。 */
+function randomTarget(n){
+  const M=44, out=[];
+  let sim=RATE_OK*0.72;
+  for(let guard=0; out.length<n && guard<4000; guard++){
+    if(guard && guard%700===0) sim=Math.min(RATE_OK*0.96,sim+0.05);   // 詰まったら条件を緩める
+    const ang=Math.random()*Math.PI;                                  // 角度はランダム
+    const len=MIN_LEN+20+Math.random()*(BOARD*0.62-MIN_LEN-20);       // 長さもランダム
+    const cx=M+Math.random()*(BOARD-2*M), cy=M+Math.random()*(BOARD-2*M);
+    const hx=Math.cos(ang)*len/2, hy=Math.sin(ang)*len/2;
+    const l={x1:cx-hx,y1:cy-hy,x2:cx+hx,y2:cy+hy};
+    if(Math.min(l.x1,l.x2,l.y1,l.y2)<M) continue;
+    if(Math.max(l.x1,l.x2,l.y1,l.y2)>BOARD-M) continue;
+    if(out.some(b=>matchRate(l,b)>=sim)) continue;
+    out.push(l);
+  }
+  return out;
+}
+function startSolo(){ openLocal(true); }
+function startTestRoom(){ openLocal(false); }
+function openLocal(solo){
+  try{ if(peer) peer.destroy(); }catch(e){}
+  peer=null; hostConn=null; conns=new Map(); isHost=false; G=null;
+  net('');
+  sessionId++;
+  T={ n:3, solo:!!solo, target:[], confirmed:[], turn:0, results:[], prev:[],
+      myLine:null, score:0, gain:0, phase:'parentDraw', peek:!solo };
+  clearLocal();
+  testRender();
+}
+function soloStart(){
+  const t=randomTarget(T.n);
+  if(t.length!==T.n){ toast('お題をつくれませんでした。もう一度どうぞ'); return; }
+  T.newBest=false; T.best=0;
+  T.target=t; T.confirmed=t.map(()=>false);
+  T.turn=1; T.phase='childDraw'; T.myLine=null; T.results=[]; T.prev=[]; T.gain=0;
+  clearLocal();
+  testRender();
+}
+function clearLocal(){
+  local.lines=[]; local.anchor=null; local.preview=null;
+  local.down=null; local.moved=false; local.sent=false; local.key=null;
+}
+function testView(){
+  const setup = T.phase==='parentDraw';
+  return {
+    test:true, solo:!!T.solo, phase:T.phase, code:T.solo?'SOLO':TEST_CODE, me:'ME', hostIsMe:true,
+    round:1, rounds:1, turn:T.turn,
+    parentId: setup?'ME':'TARGET', parentName:'テスト', nextParent:'',
+    lineCount:T.n,
+    players:[{id:'ME',name:'あなた',score:T.score,connected:true,
+      parent:setup, child:!setup, submitted:!!T.myLine, gain:T.gain}],
+    confirmed:T.confirmed.map((c,i)=>c?{...T.target[i],by:'あなた'}:null),
+    results:T.results, prev:T.prev, myLine:T.myLine,
+    newBest:!!T.newBest, best:T.best||0,
+    target:(setup||T.peek||T.phase==='roundClear') ? T.target : null
+  };
+}
+function testRender(){ V=testView(); render(); }
+function testSetTarget(lines){
+  if(lines.length!==T.n) return;
+  for(const l of lines) if(!validLine(l)){ toast('短すぎる線があります'); return; }
+  const cl=lines.map(cleanLine);
+  for(let i=0;i<cl.length;i++) for(let j=i+1;j<cl.length;j++)
+    if(matchRate(cl[i],cl[j])>=RATE_OK){ toast('ほぼ同じ線が2本あります。離して引いてください'); return; }
+  T.target=cl; T.confirmed=cl.map(()=>false);
+  T.turn=1; T.phase='childDraw'; T.myLine=null; T.results=[]; T.prev=[]; T.gain=0;
+  testRender();
+}
+function testDraw(line){
+  if(!validLine(line)){ toast('始点と終点が近すぎます'); return; }
+  T.myLine=cleanLine(line);
+  const all=T.target.map(t=>matchRate(T.myLine,t));
+  let best=-1, rate=0;
+  for(let i=0;i<all.length;i++) if(all[i]>rate){ rate=all[i]; best=i; }
+  let got=false; T.gain=0;
+  if(best>=0 && rate>=RATE_OK && !T.confirmed[best]){
+    T.confirmed[best]=true; T.score+=T.n; T.gain=T.n; got=true;
+  }
+  T.results=[{ id:'ME', name:'あなた', line:T.myLine, red:redParts(T.myLine,T.target),
+    rate:Math.round(rate*1000)/10, got, idx:best,
+    all:all.map(r=>Math.round(r*1000)/10) }];
+  if(T.confirmed.every(Boolean)){
+    T.score+=T.turn; T.gain+=T.turn; T.phase='roundClear';
+    if(T.solo){
+      T.newBest=recordBest(T.n,T.turn);          // 少ないターンほど良い
+      T.best=bestOf(T.n);
+      if(T.n>=3) unlock('solo3',pendingGot);
+      if(T.n>=5) unlock('solo5',pendingGot);
+      if(T.n>=7) unlock('solo7',pendingGot);
+      if(T.n>=3 && T.turn===T.n) unlock('flaw',pendingGot);   // 毎ターン確定＝1本も外していない
+      saveStore();
+    }
+  }
+  else T.phase='reveal';
+  testRender();
+}
+function testNextTurn(){
+  T.prev=T.results; T.results=[]; T.myLine=null; T.gain=0;
+  T.turn++; T.phase='childDraw';
+  testRender();
+}
+function testReset(){
+  T.target=[]; T.confirmed=[]; T.results=[]; T.prev=[];
+  T.myLine=null; T.turn=0; T.gain=0; T.phase='parentDraw';
+  clearLocal();
+  if(T.solo) return soloStart();       // ソロは本数そのままで新しいお題へ
+  testRender();
+}
+function renderTestBar(){
+  const bar=$('testBar');
+  if(!V||!V.test){ bar.classList.add('hide'); return; }
+  bar.classList.remove('hide');
+  const setup = V.phase==='parentDraw';
+  $('testCount').classList.toggle('hide',!setup);
+  $('testOpt').classList.toggle('hide',setup);
+  $('chkPeek').parentElement.classList.toggle('hide',!!V.solo);   // ソロで覗けたら意味がない
+  $('btnTestReset').textContent = V.solo?'別のお題にする':'お題を作り直す';
+  const bn=bestOf(T.n);
+  $('testCap').textContent = setup
+    ? (V.solo ? 'お題の本数　'+(bn? T.n+'本のベスト '+bn+'ターン（最短は '+T.n+'）'
+                                 : T.n+'本の記録はまだありません（最短は '+T.n+' ターン）')
+              : 'お題の本数（'+(T.n+1)+'人プレイ相当）')
+    : (V.solo ? 'ソロモード：お題は見えません。あと '+
+                V.confirmed.filter(c=>!c).length+' 本'
+              : 'テストルーム：あなたは子プレイヤーです。');
+  if(setup) $('testCount').innerHTML=[1,2,3,4,5,6,7].map(n=>{
+    const b=V.solo?bestOf(n):0;
+    return '<button class="'+(n===T.n?'primary':'ghost')+'" data-n="'+n+
+      '" style="flex:1;padding:7px 0"><span class="cn">'+n+'</span>'+
+      (V.solo?'<span class="cb">'+(b?b+'T':'–')+'</span>':'')+'</button>';
+  }).join('');
+}
+
+/* ============================================================
    描画
    ============================================================ */
 function ctxOf(cv){
@@ -611,18 +936,34 @@ function ctxOf(cv){
   const ctx=cv.getContext('2d');
   const s=cv.width/BOARD;
   ctx.setTransform(s,0,0,s,0,0);
+  ctx._s=s;                 // shadowBlur は変換の影響を受けないので、後で自前で掛ける
   return ctx;
 }
-function stroke(ctx,l,color,w,alpha,dash){
+function stroke(ctx,l,color,w,alpha,dash,cap){
   ctx.save();
   ctx.globalAlpha=alpha==null?1:alpha;
-  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap='round';
+  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap=cap||'round';
   if(dash) ctx.setLineDash(dash);
   ctx.beginPath(); ctx.moveTo(l.x1,l.y1); ctx.lineTo(l.x2,l.y2); ctx.stroke();
   ctx.restore();
 }
-function dot(ctx,p,color,r){
-  ctx.save(); ctx.fillStyle=color;
+/** 発光する線。暗い背景の上ににじみを2段重ねてから芯を描く。
+ *  長さは芯そのままなので、光っても重なりの範囲を誤解させない。 */
+function glowLine(ctx,l,color,w){
+  const s=(typeof ctx._s==='number'&&ctx._s>0)?ctx._s:1;
+  const path=()=>{ ctx.beginPath(); ctx.moveTo(l.x1,l.y1); ctx.lineTo(l.x2,l.y2); ctx.stroke(); };
+  ctx.save();
+  ctx.lineCap='butt'; ctx.lineWidth=w; ctx.strokeStyle=color; ctx.shadowColor=color;
+  ctx.globalCompositeOperation='lighter';
+  ctx.globalAlpha=.35; ctx.shadowBlur=26*s; path();
+  ctx.globalAlpha=.50; ctx.shadowBlur=13*s; path();
+  ctx.globalAlpha=.60; ctx.shadowBlur=5*s;  path();
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=1;   ctx.shadowBlur=0;    path();
+  ctx.restore();
+}
+function dot(ctx,p,color,r,alpha){
+  ctx.save(); ctx.globalAlpha=alpha==null?1:alpha; ctx.fillStyle=color;
   ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.restore();
 }
 /**
@@ -640,20 +981,28 @@ function paint(cv,L){
   }
   if(L.ghosts) for(const g of L.ghosts){
     stroke(ctx,g.line,'#eef1f6',3,.16);
-    for(const r of (g.red||[])) stroke(ctx,r,'#ff4136',3,.32);
+    for(const r of (g.red||[])) stroke(ctx,r,lineColor(r.i),3,.34,null,'butt');
   }
-  if(L.target) for(const t of L.target) stroke(ctx,t,'#e8c26a',3,.55,[7,6]);
-  if(L.confirmed) for(const c of L.confirmed) if(c) stroke(ctx,c,'#4fd6b0',5,.95);
-  if(L.lines) for(const l of L.lines){
-    stroke(ctx,l,'#eef1f6',5,1);
-    dot(ctx,{x:l.x1,y:l.y1},'#eef1f6',4); dot(ctx,{x:l.x2,y:l.y2},'#eef1f6',4);
+  if(L.target) for(let i=0;i<L.target.length;i++) stroke(ctx,L.target[i],lineColor(i),3,.6,[7,6]);
+  if(L.confirmed) for(let i=0;i<L.confirmed.length;i++){
+    const c=L.confirmed[i]; if(!c) continue;
+    const a=L.faint?.42:1;
+    if(!L.faint) stroke(ctx,c,'#0a0d14',9,1);   // 下地。線が交差しても色が濁らない
+    stroke(ctx,c,lineColor(i),5,a);
+    dot(ctx,{x:c.x1,y:c.y1},lineColor(i),4,a); dot(ctx,{x:c.x2,y:c.y2},lineColor(i),4,a);
   }
-  if(L.red) for(const r of L.red) stroke(ctx,r,'#ff4136',5,1);
+  if(L.lines) for(let i=0;i<L.lines.length;i++){
+    const l=L.lines[i], col=L.colorLines?lineColor(i):(L.ink||MY_DEFAULT);
+    const a=L.faint?.26:1, w=L.faint?4:5, rr=L.faint?3:4;
+    stroke(ctx,l,col,w,a);
+    dot(ctx,{x:l.x1,y:l.y1},col,rr,a); dot(ctx,{x:l.x2,y:l.y2},col,rr,a);
+  }
+  if(L.red) for(const r of L.red) glowLine(ctx,r,lineColor(r.i),5);
   if(L.preview){
     const ok=lenOf(L.preview)>=MIN_LEN;
-    stroke(ctx,L.preview,ok?'#eef1f6':'#8d96ad',4,ok?.85:.5,ok?null:[6,6]);
+    stroke(ctx,L.preview,ok?(L.previewColor||'#eef1f6'):'#8d96ad',4,ok?.85:.5,ok?null:[6,6]);
   }
-  if(L.anchor) dot(ctx,L.anchor,'#ff4136',6);
+  if(L.anchor) dot(ctx,L.anchor,L.previewColor||'#e8c26a',6);
 }
 
 /* ============================================================
@@ -667,7 +1016,7 @@ function boardPt(e,cv){
 }
 function canDraw(){
   if(!V) return false;
-  if(V.phase==='parentDraw') return V.me===V.parentId && local.lines.length<V.lineCount;
+  if(V.phase==='parentDraw') return V.me===V.parentId && !V.solo && local.lines.length<V.lineCount;
   if(V.phase==='childDraw')  return V.me!==V.parentId && !V.myLine && !local.sent;
   return false;
 }
@@ -737,6 +1086,8 @@ function chips(p){
 }
 function playerList(el,opt){
   opt=opt||{};
+  if(V.solo){ el.classList.add('hide'); el.innerHTML=''; return; }   // ソロは自分ひとりなので出さない
+  el.classList.remove('hide');
   el.innerHTML=V.players.map(p=>{
     let extra='';
     if(opt.submit&&p.child) extra = p.submitted
@@ -748,11 +1099,23 @@ function playerList(el,opt){
   }).join('');
 }
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function pips(el){
-  const n=V.confirmed.length;
-  el.innerHTML=V.confirmed.map(c=>'<div class="pip'+(c?' on':'')+'"></div>').join('')+
-    '<span class="small" style="flex:0 0 auto;margin-left:6px">確定 '+
-    V.confirmed.filter(Boolean).length+'/'+n+'</span>';
+function pips(el,opt){
+  opt=opt||{};
+  const done = opt.states || V.confirmed.map(Boolean);
+  el.innerHTML=done.map((c,i)=>'<div class="pip'+(c?' on':'')+'" style="--lc:'+lineColor(i)+'">'+
+      lineMark(i)+'</div>').join('')+
+    '<span class="small" style="flex:0 0 auto;margin-left:6px">'+(opt.label||'確定')+' '+
+    done.filter(Boolean).length+'/'+done.length+'</span>';
+}
+function updatePips(){
+  if(V.phase==='parentDraw'){
+    if(V.me!==V.parentId||V.solo){ $('drawPips').classList.add('hide'); return; }
+    const st=[]; for(let i=0;i<V.lineCount;i++) st.push(i<local.lines.length);
+    pips($('drawPips'),{states:st,label:'作図'});
+  }else{
+    pips($('drawPips'));
+  }
+  $('drawPips').classList.remove('hide');
 }
 
 function render(){
@@ -765,8 +1128,10 @@ function render(){
     hint('');
   }
   $('barCode').textContent=V.code;
-  $('barPhase').textContent = V.phase==='lobby' ? '待機中'
+  $('barPhase').textContent = V.solo ? (V.phase==='parentDraw'?'ソロ':'ソロ・ターン '+V.turn)
+    : V.phase==='lobby' ? '待機中'
     : 'ラウンド '+V.round+'/'+V.rounds+(V.turn?'・ターン '+V.turn:'');
+  checkAchievements();
 
   if(V.phase==='lobby') return renderLobby();
   if(V.phase==='parentDraw'||V.phase==='childDraw') return renderDraw();
@@ -792,7 +1157,10 @@ function renderDraw(){
   const iAmParent = V.me===V.parentId;
   const cv=$('board');
   if(V.phase==='parentDraw'){
-    if(iAmParent){
+    if(V.solo){
+      $('drawTitle').textContent='ソロモード';
+      $('drawSub').textContent='お題の本数をえらんでください。';
+    }else if(iAmParent){
       $('drawTitle').textContent='お題をつくる';
       $('drawSub').textContent='直線'+V.lineCount+'本で図形を描いてください。子には見えません。';
     }else{
@@ -808,8 +1176,8 @@ function renderDraw(){
       $('drawSub').textContent='お題の'+V.lineCount+'本のうち、どれか1本だと思う線を引いてください。';
     }
   }
-  pips($('drawPips'));
-  $('drawPips').classList.toggle('hide', V.phase==='parentDraw');
+  updatePips();
+  renderTestBar();
   paintDraw();
   refreshDrawUI();
   playerList($('drawList'),{submit:V.phase==='childDraw'});
@@ -820,23 +1188,37 @@ function paintDraw(){
   const useGhost=$('chkGhost').checked;
   const L={ confirmed:V.confirmed, lines:[], red:[], preview:local.preview, anchor:local.anchor };
   if(V.phase==='parentDraw'){
-    if(V.me===V.parentId) L.lines=local.lines;
+    if(V.me===V.parentId){
+      L.lines=local.lines; L.colorLines=true;
+      L.previewColor=lineColor(Math.min(local.lines.length,V.lineCount-1));
+    }
   }else{
     if(useGhost&&V.prev&&V.prev.length) L.ghosts=V.prev.map(r=>({line:r.line,red:r.red}));
     if(V.me===V.parentId){ L.target=V.target||[]; }
-    else if(V.myLine) L.lines=[V.myLine];
-    else L.lines=local.lines;
+    else{
+      if(V.test&&V.target) L.target=V.target;   // テストルームでは答え合わせしながら引ける
+      L.ink=myColor(); L.previewColor=myColor();
+      if(V.myLine) L.lines=[V.myLine];
+      else L.lines=local.lines;
+    }
   }
   paint(cv,L);
 }
 function refreshDrawUI(){
   const iAmParent=V.me===V.parentId;
   const bU=$('btnUndo'), bS=$('btnSubmit');
+  updatePips();
   $('chkGhost').parentElement.classList.toggle('hide', V.phase!=='childDraw'||!(V.prev&&V.prev.length));
   if(V.phase==='parentDraw'){
-    bU.classList.toggle('hide',!iAmParent);
+    bU.classList.toggle('hide',!iAmParent||!!V.solo);
     bS.classList.toggle('hide',!iAmParent);
-    if(iAmParent){
+    if(V.solo){
+      bS.disabled=false;
+      bS.textContent='この本数ではじめる';
+      $('drawSub').textContent='ランダムな角度と長さの直線'+V.lineCount+
+        '本が用意されます。できるだけ少ないターンで解読してください。';
+      hint('');
+    }else if(iAmParent){
       const left=V.lineCount-local.lines.length;
       bU.disabled=local.lines.length===0;
       bS.disabled=left!==0;
@@ -852,7 +1234,7 @@ function refreshDrawUI(){
       const done=kids.filter(p=>p.submitted).length;
       bS.textContent='結果を見る（'+done+'/'+kids.length+'）';
       bS.disabled=done<kids.length||kids.length===0;
-      hint('点線はあなたのお題です。子には見えていません。');
+      hint('点線はあなたのお題です。①②…の色がそのまま判定の色になります。');
     }else{
       bU.classList.remove('hide'); bS.classList.remove('hide');
       const sent=!!V.myLine;
@@ -868,13 +1250,17 @@ function refreshDrawUI(){
 function renderReveal(){
   show('sc-reveal');
   $('revTitle').textContent='ターン '+V.turn+' の結果';
-  $('revSub').textContent='赤い部分がお題と重なっていたところです。';
+  $('revSub').textContent='お題と重なった部分が、その線の色（①②…）で光ります。';
   pips($('revPips'));
   buildCells($('revGrid'),V.results);
   const iAmParent=V.me===V.parentId;
-  $('btnNextTurn').classList.toggle('hide',!iAmParent);
-  $('revHint').textContent = iAmParent
-    ? '確定した線は全員に見えるようになりました。' : V.parentName+'さんが次のターンを始めるのを待っています。';
+  $('btnNextTurn').classList.toggle('hide',!iAmParent&&!V.test);
+  $('revHint').textContent = V.solo
+    ? '光った部分がお題と重なったところです。85%以上でその線が確定します。'
+    : V.test
+    ? '①②…はお題の各線との一致率です。85%以上でその線が確定します。'
+    : (iAmParent ? '確定した線は全員に見えるようになりました。'
+                 : V.parentName+'さんが次のターンを始めるのを待っています。');
   playerList($('revList'),{gain:true});
 }
 function buildCells(grid,list){
@@ -882,25 +1268,46 @@ function buildCells(grid,list){
   for(const r of (list||[])){
     const d=document.createElement('div');
     d.className='cell'+(r.rate>=RATE_OK*100?' hit':'');
+    const hasIdx = typeof r.idx==='number' && r.idx>=0;
+    if(hasIdx) d.style.setProperty('--lc',lineColor(r.idx));
     d.innerHTML='<canvas></canvas><div class="ch"><span class="cn">'+esc(r.name)+
-      (r.got?' <span class="gain">確定</span>':'')+'</span><span class="cr">'+r.rate.toFixed(1)+'%</span></div>';
+      (r.got?' <span class="gain">確定</span>':'')+'</span>'+
+      (hasIdx?'<span class="lm">'+lineMark(r.idx)+'</span>':'')+
+      '<span class="cr">'+r.rate.toFixed(1)+'%</span></div>';
     grid.appendChild(d);
+    if(r.all){
+      const b=document.createElement('div');
+      b.className='rates';
+      b.innerHTML=r.all.map((v,i)=>'<span style="color:'+lineColor(i)+'">'+
+        lineMark(i)+' '+v.toFixed(1)+'%</span>').join('');
+      d.appendChild(b);
+    }
     const cv=d.querySelector('canvas');
-    requestAnimationFrame(()=>paint(cv,{confirmed:V.confirmed,lines:[r.line],red:r.red}));
+    const ink = r.id===V.me ? myColor() : MY_DEFAULT;
+    requestAnimationFrame(()=>paint(cv,{confirmed:V.confirmed,lines:[r.line],red:r.red,faint:true,ink}));
   }
 }
 
 function renderClear(){
   show('sc-clear');
-  $('clearSub').textContent=V.parentName+'さんのお題を '+V.turn+' ターンで解読。'+
-    V.parentName+'さんに +'+V.turn+' 点。';
+  $('bestBadge').classList.toggle('hide',!(V.solo&&V.newBest));
+  $('clearSub').textContent = V.solo
+    ? (V.newBest
+        ? 'お題の'+V.lineCount+'本を '+V.turn+' ターンで解読。ベスト更新です。'
+        : 'お題の'+V.lineCount+'本を '+V.turn+' ターンで解読。'+
+          (V.best?'ベストは '+V.best+' ターン。':'')) +
+      (V.turn===V.lineCount?'　これ以上は縮められません。':'')
+    : V.test
+    ? 'お題の'+V.lineCount+'本すべてを '+V.turn+' ターンで解読しました。'
+    : V.parentName+'さんのお題を '+V.turn+' ターンで解読。'+V.parentName+'さんに +'+V.turn+' 点。';
   requestAnimationFrame(()=>paint($('clearBoard'),{confirmed:V.confirmed}));
   playerList($('clearList'),{gain:true});
   const last=!V.nextParent;
   const b=$('btnNextRound');
-  b.textContent=last?'最終結果を見る':'次のラウンドへ（親：'+V.nextParent+'）';
+  b.textContent = V.solo ? 'もう一度あそぶ' : V.test ? '新しいお題でもう一度'
+    : (last?'最終結果を見る':'次のラウンドへ（親：'+V.nextParent+'）');
   b.classList.toggle('hide',!V.hostIsMe);
-  $('clearNote').textContent=V.hostIsMe?'':'部屋をつくった人が進めます。';
+  $('clearNote').textContent = V.test ? '' : (V.hostIsMe?'':'部屋をつくった人が進めます。');
 }
 
 function renderEnd(){
@@ -915,37 +1322,107 @@ function renderEnd(){
 }
 
 /* ============================================================
+   ロゴ
+   ============================================================ */
+/* I の縦線を L・N の縦棒と同じ長さ・同じ位置にそろえる。
+   大文字の高さも字幅もフォント次第で変わるので、Canvas の文字実測から求める。
+   （SVG の getBBox は環境によって「大文字の箱」ではなく「行の箱」を返すため使わない）
+   丸の中心を大文字の上端とベースラインに置くので、縦棒の長さが L・N と一致する。 */
+const WM_SIZE=52, WM_BASE=40, WM_GAP=13, WM_HALF=3.5;
+function fitLogo(){
+  const L=$('wmL'), NE=$('wmNE'), d1=$('wmD1'), d2=$('wmD2'), s=$('wmS');
+  if(!L||!NE||!d1||!d2||!s) return;
+  let cap=0, inkR=0, nLeft=0, neR=0, mR=0;
+  try{
+    const cs=(window.getComputedStyle?getComputedStyle(L):null);
+    const fam=(cs&&cs.fontFamily)||'sans-serif', wt=(cs&&cs.fontWeight)||'800';
+    const ctx=document.createElement('canvas').getContext('2d');
+    ctx.font=wt+' '+WM_SIZE+'px '+fam;
+    try{ if('letterSpacing' in ctx) ctx.letterSpacing='-0.02em'; }catch(e){}
+    const mL=ctx.measureText('L'), mN=ctx.measureText('N'), mNE=ctx.measureText('NE');
+    cap=mL.actualBoundingBoxAscent;    // ベースライン→大文字上端＝L の縦棒の長さ
+    inkR=mL.actualBoundingBoxRight;    // L のインク右端
+    nLeft=mN.actualBoundingBoxLeft;    // N の原点からインク左端までの距離
+    neR=mNE.actualBoundingBoxRight;    // NE のインク右端
+    ctx.font=wt+' 26px '+fam;
+    try{ if('letterSpacing' in ctx) ctx.letterSpacing='0.34em'; }catch(e){}
+    mR=ctx.measureText('MATCH').actualBoundingBoxRight;
+  }catch(e){}
+  if(!(cap>0.55*WM_SIZE && cap<0.85*WM_SIZE)) cap=0.72*WM_SIZE;   // 測れないときの既定値
+  const top=WM_BASE-cap;
+  d1.setAttribute('cy',top.toFixed(2)); d2.setAttribute('cy',WM_BASE.toFixed(2));
+  s.setAttribute('y1',top.toFixed(2));  s.setAttribute('y2',WM_BASE.toFixed(2));
+  if(inkR>0.1*WM_SIZE && inkR<WM_SIZE){                            // 横位置もLの実寸に合わせる
+    const ix=inkR+WM_GAP+WM_HALF;
+    d1.setAttribute('cx',ix.toFixed(2)); d2.setAttribute('cx',ix.toFixed(2));
+    s.setAttribute('x1',ix.toFixed(2));  s.setAttribute('x2',ix.toFixed(2));
+    const nx=ix+WM_HALF+WM_GAP+(nLeft||0);
+    NE.setAttribute('x',nx.toFixed(2));
+    /* 字幅はフォント次第なので、実測した合計幅にあわせてロゴ全体を中央へ寄せる */
+    const g=$('wmG');
+    if(g&&neR>0&&mR>0){
+      const w=Math.max(nx+neR, mR);
+      if(w>60&&w<300) g.setAttribute('transform','translate('+((300-w)/2).toFixed(2)+',0)');
+    }
+  }
+}
+
+/* ============================================================
    ボタン
    ============================================================ */
 $('btnCreate').onclick=createRoom;
 $('btnJoin').onclick=joinRoom;
+$('btnSolo').onclick=startSolo;
 $('btnRules').onclick=()=>$('dlgRules').showModal();
 $('btnRules2').onclick=()=>$('dlgRules').showModal();
+$('btnOpt').onclick=()=>{ renderOptions(); $('dlgOpt').showModal(); };
+$('optColors').addEventListener('click',e=>{
+  const b=e.target&&e.target.closest?e.target.closest('button'):null;
+  if(!b||b.disabled||!b.dataset.c||!isOwned(b.dataset.c)) return;
+  ST.color=b.dataset.c; saveStore(); renderOptions();
+  if(V) render();
+});
 $('btnStart').onclick=()=>toHost({t:'start'});
 $('btnUndo').onclick=()=>{ local.lines.pop(); local.anchor=null; hint(''); paintDraw(); refreshDrawUI(); };
 $('btnSubmit').onclick=()=>{
   if(V.phase==='parentDraw'){
+    if(V.solo) return soloStart();
     if(local.lines.length!==V.lineCount) return;
+    if(V.test) return testSetTarget(local.lines);
     toHost({t:'target',lines:local.lines});   // 却下されたときのため手元の線は残す
   }else if(V.me===V.parentId){
     toHost({t:'reveal'});
   }else{
     if(local.lines.length!==1) return;
     local.sent=true;
+    if(V.test) return testDraw(local.lines[0]);
     toHost({t:'draw',line:local.lines[0]});
     refreshDrawUI();
   }
 };
-$('btnNextTurn').onclick=()=>toHost({t:'next'});
-$('btnNextRound').onclick=()=>toHost({t:'round'});
+$('btnNextTurn').onclick=()=>{ if(V&&V.test) return testNextTurn(); toHost({t:'next'}); };
+$('btnNextRound').onclick=()=>{ if(V&&V.test) return testReset(); toHost({t:'round'}); };
 $('btnAgain').onclick=()=>toHost({t:'again'});
+$('btnTestReset').onclick=()=>{ if(T) testReset(); };
+$('chkPeek').onchange=e=>{ if(T){ T.peek=e.target.checked; paintDraw(); } };
+$('testCount').addEventListener('click',e=>{
+  const b=e.target&&e.target.closest?e.target.closest('button'):null;
+  if(!b||!T||T.phase!=='parentDraw') return;
+  T.n=Math.max(1,Math.min(7,+b.dataset.n||3));
+  local.lines=T.solo?[]:local.lines.slice(0,T.n);
+  local.anchor=null; local.preview=null;
+  testRender();
+});
 $('chkGhost').onchange=paintDraw;
 $('inCode').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase(); });
 
 let rz;
 window.addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(V) render(); },150); });
+loadStore();
 bindBoard();
 show('sc-menu');
+fitLogo();
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitLogo).catch(()=>{});
 </script>
 </body>
 </html>
