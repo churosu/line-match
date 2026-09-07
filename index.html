@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LINE MATCH</title>
+<style>
+:root{
+  --ink:#0d1018;
+  --panel:#161b28;
+  --panel2:#1e2434;
+  --rule:#2b3346;
+  --chalk:#eef1f6;
+  --dim:#8d96ad;
+  --signal:#ff4136;
+  --lock:#4fd6b0;
+  --gold:#e8c26a;
+  --pad:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--ink);color:var(--chalk)}
+body{
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",system-ui,sans-serif;
+  font-size:15px;line-height:1.6;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overscroll-behavior:none;
+}
+#app{max-width:520px;margin:0 auto;padding:var(--pad) var(--pad) 40px}
+h1,h2,h3{margin:0;font-weight:700;letter-spacing:.01em}
+p{margin:0 0 10px}
+button{font:inherit;font-weight:700;color:var(--chalk);background:var(--panel2);
+  border:1px solid var(--rule);border-radius:10px;padding:12px 16px;cursor:pointer;
+  transition:background .12s ease,border-color .12s ease}
+button:hover:not(:disabled){background:#28304a}
+button:disabled{opacity:.38;cursor:default}
+button:focus-visible{outline:2px solid var(--lock);outline-offset:2px}
+.primary{background:var(--chalk);color:#0d1018;border-color:var(--chalk)}
+.primary:hover:not(:disabled){background:#fff}
+.ghost{background:transparent}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+input{font:inherit;width:100%;background:var(--panel);color:var(--chalk);
+  border:1px solid var(--rule);border-radius:10px;padding:12px 14px}
+input:focus{outline:2px solid var(--lock);outline-offset:1px}
+.small{font-size:13px;color:var(--dim);line-height:1.5}
+.stack{display:flex;flex-direction:column;gap:10px}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:14px}
+.hide{display:none !important}
+
+/* ---- wordmark ---- */
+#brand{margin:22px 0 26px;text-align:center}
+#brand svg{width:min(300px,80vw);height:auto;display:block;margin:0 auto}
+.wm-txt{font-family:inherit;font-weight:800;font-size:52px;letter-spacing:-.02em;fill:var(--chalk)}
+.wm-dot{fill:var(--signal)}
+.wm-seg{stroke:var(--signal);stroke-width:7;stroke-linecap:round}
+.tag{margin-top:6px;color:var(--dim);font-size:13px}
+@media (prefers-reduced-motion:no-preference){
+  .wm-dot{opacity:0;animation:pop .3s ease forwards}
+  .wm-dot.d2{animation-delay:.22s}
+  .wm-seg{stroke-dasharray:60;stroke-dashoffset:60;animation:draw .5s cubic-bezier(.2,.7,.3,1) .45s forwards}
+  @keyframes pop{to{opacity:1}}
+  @keyframes draw{to{stroke-dashoffset:0}}
+}
+
+/* ---- top bar ---- */
+#bar{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--rule)}
+#bar .t{font-weight:800;letter-spacing:.06em;font-size:14px}
+#bar .meta{font-size:13px;color:var(--dim);margin-left:auto}
+.code{font-variant-numeric:tabular-nums;letter-spacing:.22em;font-weight:800}
+
+/* ---- board ---- */
+.board{width:100%;aspect-ratio:1/1;display:block;border-radius:12px;
+  border:1px solid var(--rule);touch-action:none;background:#0a0d14}
+.boardwrap{position:relative}
+.hint{font-size:13px;color:var(--dim);min-height:20px;margin:8px 0 10px}
+.hint.warn{color:var(--gold)}
+
+/* ---- players ---- */
+.plist{display:flex;flex-direction:column;gap:2px}
+.pl{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;background:var(--panel2)}
+.pl .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl .sc{font-variant-numeric:tabular-nums;font-weight:800}
+.pl.off{opacity:.4}
+.chip{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;
+  border:1px solid currentColor;line-height:1.5}
+.chip.parent{color:var(--gold)}
+.chip.done{color:var(--lock)}
+.chip.wait{color:var(--dim)}
+.chip.me{color:var(--chalk);border-style:dashed}
+
+/* ---- reveal grid ---- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cell{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:8px}
+.cell canvas{width:100%;aspect-ratio:1/1;display:block;border-radius:7px;background:#0a0d14}
+.cell .ch{display:flex;align-items:baseline;gap:6px;margin-top:7px}
+.cell .cn{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim)}
+.cell .cr{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.cell.hit{border-color:var(--lock)}
+.cell.hit .cr{color:var(--lock)}
+.gain{font-size:11px;font-weight:800;color:var(--lock)}
+
+/* ---- progress pips ---- */
+.pips{display:flex;gap:5px;align-items:center;margin:2px 0 10px}
+.pip{flex:1;height:5px;border-radius:3px;background:var(--rule)}
+.pip.on{background:var(--lock)}
+
+.big{font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.rank{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--panel2)}
+.rank .n{width:22px;font-weight:800;color:var(--dim);font-variant-numeric:tabular-nums}
+.rank.top{background:#2a2a1c;border:1px solid var(--gold)}
+
+dialog{max-width:460px;width:calc(100% - 28px);background:var(--panel);color:var(--chalk);
+  border:1px solid var(--rule);border-radius:16px;padding:18px}
+dialog::backdrop{background:rgba(5,7,12,.72)}
+dialog h3{margin-bottom:8px}
+dialog ol{padding-left:18px;margin:0 0 12px}
+dialog li{margin-bottom:7px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+  background:var(--gold);color:#181200;font-weight:700;padding:10px 16px;border-radius:10px;
+  z-index:99;max-width:88vw;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ MENU ============ -->
+  <section id="sc-menu">
+    <div id="brand">
+      <svg viewBox="0 0 300 78" role="img" aria-label="LINE MATCH">
+        <text class="wm-txt" x="0" y="40">L</text>
+        <circle class="wm-dot" cx="41" cy="12" r="5"/>
+        <circle class="wm-dot d2" cx="41" cy="40" r="5"/>
+        <line class="wm-seg" x1="41" y1="12" x2="41" y2="40"/>
+        <text class="wm-txt" x="52" y="40">NE</text>
+        <text class="wm-txt" x="0" y="74" style="font-size:26px;letter-spacing:.34em">MATCH</text>
+      </svg>
+      <div class="tag">直線だけで描く、線あてゲーム。2〜8人</div>
+    </div>
+
+    <div class="stack">
+      <input id="inName" maxlength="10" placeholder="なまえ（10文字まで）" autocomplete="nickname">
+      <button class="primary" id="btnCreate">部屋をつくる</button>
+      <div class="row">
+        <input id="inCode" maxlength="5" placeholder="あいことば" autocapitalize="characters" style="flex:1.2">
+        <button id="btnJoin" style="flex:.8">参加する</button>
+      </div>
+      <button class="ghost" id="btnRules">あそびかた</button>
+      <div class="small" id="netStatus"></div>
+    </div>
+  </section>
+
+  <!-- ============ 共通ヘッダ ============ -->
+  <div id="bar" class="hide">
+    <span class="t">LINE MATCH</span>
+    <span id="barPhase" class="small"></span>
+    <span class="meta">あいことば <span class="code" id="barCode"></span></span>
+  </div>
+
+  <!-- ============ LOBBY ============ -->
+  <section id="sc-lobby" class="hide">
+    <div class="panel stack">
+      <div>
+        <div class="small">このあいことばを仲間に伝えてください</div>
+        <div class="big code" id="lobbyCode"></div>
+      </div>
+      <div class="plist" id="lobbyList"></div>
+      <div class="small" id="lobbyNote"></div>
+      <button class="primary" id="btnStart">ゲームを始める</button>
+      <button class="ghost" id="btnRules2">あそびかた</button>
+    </div>
+  </section>
+
+  <!-- ============ DRAW ============ -->
+  <section id="sc-draw" class="hide">
+    <div class="stack">
+      <div>
+        <h2 id="drawTitle"></h2>
+        <div class="small" id="drawSub"></div>
+      </div>
+      <div class="pips" id="drawPips"></div>
+      <div class="boardwrap"><canvas id="board" class="board"></canvas></div>
+      <div class="hint" id="drawHint"></div>
+      <div class="row">
+        <button id="btnUndo" style="flex:.7">1本消す</button>
+        <button class="primary" id="btnSubmit" style="flex:1.3">決定</button>
+      </div>
+      <label class="small" style="display:flex;gap:8px;align-items:center">
+        <input type="checkbox" id="chkGhost" checked style="width:auto"> 前のターンの結果を重ねて表示
+      </label>
+      <div class="plist" id="drawList"></div>
+    </div>
+  </section>
+
+  <!-- ============ REVEAL ============ -->
+  <section id="sc-reveal" class="hide">
+    <div class="stack">
+      <div>
+        <h2 id="revTitle"></h2>
+        <div class="small" id="revSub"></div>
+      </div>
+      <div class="pips" id="revPips"></div>
+      <div class="grid" id="revGrid"></div>
+      <div class="hint" id="revHint"></div>
+      <button class="primary" id="btnNextTurn">次のターンへ</button>
+      <div class="plist" id="revList"></div>
+    </div>
+  </section>
+
+  <!-- ============ ROUND CLEAR ============ -->
+  <section id="sc-clear" class="hide">
+    <div class="stack">
+      <div>
+        <h2 style="color:var(--lock)">CLEAR</h2>
+        <div class="small" id="clearSub"></div>
+      </div>
+      <div class="boardwrap"><canvas id="clearBoard" class="board"></canvas></div>
+      <div class="plist" id="clearList"></div>
+      <button class="primary" id="btnNextRound"></button>
+      <div class="small" id="clearNote"></div>
+    </div>
+  </section>
+
+  <!-- ============ GAME END ============ -->
+  <section id="sc-end" class="hide">
+    <div class="stack">
+      <h2>おわり</h2>
+      <div class="stack" id="endList"></div>
+      <button class="primary" id="btnAgain">同じ人でもう一度</button>
+      <div class="small" id="endNote"></div>
+    </div>
+  </section>
+</div>
+
+<dialog id="dlgRules">
+  <h3>あそびかた</h3>
+  <ol>
+    <li><b>親</b>がお題の図形を描きます。使える直線は<b>子の人数</b>と同じ本数です。子には見えません。</li>
+    <li><b>子</b>は図形を想像して、そのうちの<b>直線を1本だけ</b>自分のキャンバスに描きます。</li>
+    <li>全員そろったら親が「結果を見る」を押します。全員のキャンバスが同時に公開され、お題と重なった部分が<b style="color:var(--signal)">赤</b>、外れた部分が白で表示されます。一致率も出ます。</li>
+    <li>一致率が<b>85%</b>を超えた線は<b style="color:var(--lock)">確定</b>し、全員に見えるようになります。最初に確定させた人が<b>子の人数分</b>の得点。</li>
+    <li>お題の線がすべて確定したらCLEAR。<b>かかったターン数がそのまま親の得点</b>になります。</li>
+    <li>親は1人1回ずつ。全員が親を終えたらゲーム終了、得点を比べます。</li>
+  </ol>
+  <p class="small">線は始点と終点を決めて引きます。タップで始点、もう一度タップで終点。ドラッグでも引けます。短すぎる線は引けません。</p>
+  <button class="primary" style="width:100%" onclick="document.getElementById('dlgRules').close()">閉じる</button>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   定数
+   ============================================================ */
+const BOARD    = 400;   // 論理キャンバスサイズ
+const MIN_LEN  = 60;    // 始点と終点の最低距離（=盤の15%）
+const TOL      = 12;    // 「重なっている」とみなす許容距離（=盤の3%）
+const RATE_OK  = 0.85;  // 確定に必要な一致率
+const SAMPLES  = 160;   // 判定サンプル数
+const MAX_PL   = 8;
+const MIN_PL   = 2;
+const PREFIX   = 'linematch-r1-';
+const CODE_CH  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/* ============================================================
+   幾何：一致率と赤い部分の計算
+   ============================================================ */
+function segDist(px,py,x1,y1,x2,y2){
+  const dx=x2-x1, dy=y2-y1, l2=dx*dx+dy*dy;
+  if(l2===0) return Math.hypot(px-x1,py-y1);
+  let t=((px-x1)*dx+(py-y1)*dy)/l2;
+  t=t<0?0:(t>1?1:t);
+  return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
+}
+function lenOf(l){ return Math.hypot(l.x2-l.x1, l.y2-l.y1); }
+function ptOn(l,t){ return {x:l.x1+(l.x2-l.x1)*t, y:l.y1+(l.y2-l.y1)*t}; }
+
+/** a の何割が b の許容範囲に収まっているか */
+function coverage(a,b){
+  let hit=0;
+  for(let i=0;i<=SAMPLES;i++){
+    const p=ptOn(a,i/SAMPLES);
+    if(segDist(p.x,p.y,b.x1,b.y1,b.x2,b.y2)<=TOL) hit++;
+  }
+  return hit/(SAMPLES+1);
+}
+/** 一致率＝「描いた線の重なり割合」と「お題の線の覆われ割合」の調和平均 */
+function matchRate(a,b){
+  const p=coverage(a,b), r=coverage(b,a);
+  return (p+r)>0 ? 2*p*r/(p+r) : 0;
+}
+/** 描いた線のうち、お題「図形」と重なっている区間（＝赤く描く部分）。
+ *  お題の線どれか1本にでも重なっていれば赤くなる。 */
+function redParts(a,targets){
+  const ts=Array.isArray(targets)?targets:[targets];
+  const out=[]; let s=null;
+  for(let i=0;i<=SAMPLES;i++){
+    const t=i/SAMPLES, p=ptOn(a,t);
+    const on = ts.some(b=>segDist(p.x,p.y,b.x1,b.y1,b.x2,b.y2)<=TOL);
+    if(on && s===null) s=t;
+    if(!on && s!==null){ out.push([s,(i-1)/SAMPLES]); s=null; }
+  }
+  if(s!==null) out.push([s,1]);
+  return out.map(([t0,t1])=>{
+    const p0=ptOn(a,t0), p1=ptOn(a,t1);
+    return {x1:p0.x,y1:p0.y,x2:p1.x,y2:p1.y};
+  }).filter(s2=>lenOf(s2)>0.5);
+}
+function validLine(l){
+  return l && [l.x1,l.y1,l.x2,l.y2].every(v=>typeof v==='number' && isFinite(v)
+    && v>=-1 && v<=BOARD+1) && lenOf(l)>=MIN_LEN-0.5;
+}
+function cleanLine(l){
+  const c=v=>Math.max(0,Math.min(BOARD,Math.round(v*100)/100));
+  return {x1:c(l.x1),y1:c(l.y1),x2:c(l.x2),y2:c(l.y2)};
+}
+
+/* ============================================================
+   通信
+   ============================================================ */
+let peer=null, isHost=false, myId=null, myName='', roomCode='';
+let conns=new Map();     // 親機のみ: playerId -> DataConnection
+let hostConn=null;       // 子機のみ
+let G=null;              // 親機の正本データ
+let V=null;              // 自分に届いている表示用データ
+
+function toast(msg){
+  local.sent=false;                     // 却下されたら描き直せるようにする
+  if(V&&(V.phase==='parentDraw'||V.phase==='childDraw')) try{ refreshDrawUI(); }catch(e){}
+  let t=document.getElementById('toast');
+  if(t) t.remove();
+  t=document.createElement('div'); t.id='toast'; t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>{ if(t.parentNode) t.remove(); }, 2600);
+}
+function net(msg){ document.getElementById('netStatus').textContent=msg||''; }
+function makeCode(){ let s=''; for(let i=0;i<5;i++) s+=CODE_CH[Math.floor(Math.random()*CODE_CH.length)]; return s; }
+function send(conn,msg){ try{ if(conn&&conn.open) conn.send(msg); }catch(e){} }
+function toHost(msg){ if(isHost) hostRecv(myId,msg); else send(hostConn,msg); }
+
+/* ---------- 部屋をつくる（この端末が全処理を行う） ---------- */
+function createRoom(){
+  const name=readName(); if(!name) return;
+  if(typeof Peer==='undefined'){ net('通信ライブラリを読み込めませんでした。オンラインで開き直してください。'); return; }
+  myName=name; isHost=true; roomCode=makeCode(); myId='HOST';
+  net('部屋を準備しています…');
+  peer=new Peer(PREFIX+roomCode,{debug:0});
+  peer.on('open', ()=>{
+    initState();
+    addPlayer('HOST', myName);
+    broadcast();
+    net('');
+  });
+  peer.on('error', e=>{
+    if(e && e.type==='unavailable-id'){ roomCode=makeCode(); peer.destroy(); createRoomRetry(); }
+    else net('接続エラー：'+(e&&e.type?e.type:'unknown'));
+  });
+  peer.on('connection', setupHostConn);
+}
+function createRoomRetry(){
+  peer=new Peer(PREFIX+roomCode,{debug:0});
+  peer.on('open', ()=>{ initState(); addPlayer('HOST',myName); broadcast(); net(''); });
+  peer.on('error', e=>net('接続エラー：'+(e&&e.type?e.type:'unknown')));
+  peer.on('connection', setupHostConn);
+}
+function setupHostConn(conn){
+  conn.on('open', ()=>{ conns.set(conn.peer, conn); });
+  conn.on('data', d=>{ if(d&&d.t==='join') hostJoin(conn,d); else hostRecv(conn.peer,d); });
+  conn.on('close', ()=>{ hostLeave(conn.peer); });
+  conn.on('error', ()=>{ hostLeave(conn.peer); });
+}
+
+/* ---------- 部屋に入る ---------- */
+function joinRoom(){
+  const name=readName(); if(!name) return;
+  const code=(document.getElementById('inCode').value||'').trim().toUpperCase();
+  if(code.length<4){ net('あいことばを入力してください。'); return; }
+  if(typeof Peer==='undefined'){ net('通信ライブラリを読み込めませんでした。オンラインで開き直してください。'); return; }
+  myName=name; isHost=false; roomCode=code;
+  net('接続しています…');
+  peer=new Peer({debug:0});
+  peer.on('open', id=>{
+    myId=id;
+    hostConn=peer.connect(PREFIX+code,{reliable:true});
+    hostConn.on('open', ()=>{ net(''); send(hostConn,{t:'join',name:myName}); });
+    hostConn.on('data', d=>{
+      if(!d) return;
+      if(d.t==='view'){ V=d.v; render(); }
+      else if(d.t==='err'){ toast(d.msg); }
+    });
+    hostConn.on('close', ()=>{ toast('部屋との接続が切れました'); });
+    hostConn.on('error', ()=>{ net('部屋が見つかりません。あいことばを確かめてください。'); });
+  });
+  peer.on('error', e=>{
+    const ty=e&&e.type?e.type:'';
+    net(ty==='peer-unavailable' ? 'その部屋は見つかりませんでした。' : '接続エラー：'+ty);
+  });
+}
+function readName(){
+  const n=(document.getElementById('inName').value||'').trim().slice(0,10);
+  if(!n){ net('なまえを入力してください。'); return null; }
+  return n;
+}
+
+/* ============================================================
+   親機：ゲームの状態
+   ============================================================ */
+function initState(){
+  G={ phase:'lobby', players:[], order:[], round:0, turn:0,
+      parentId:null, childIds:[], lineCount:0,
+      target:[], confirmed:[], confirmedBy:[],
+      subs:new Map(), subN:0, results:[], prevResults:[], gain:{} };
+}
+function pOf(id){ return G.players.find(p=>p.id===id)||null; }
+function nameOf(id){ const p=pOf(id); return p?p.name:'？'; }
+function addPlayer(id,name){
+  let n=String(name||'名無し').slice(0,10);
+  const dup=G.players.filter(p=>p.name.replace(/\(\d\)$/,'')===n).length;
+  if(dup) n=n+'('+(dup+1)+')';
+  G.players.push({id,name:n,score:0,connected:true});
+}
+function hostJoin(conn,d){
+  const name=String(d.name||'名無し').slice(0,10);
+  // 同じ名前で切断中の人がいれば席を引き継ぐ（再接続）
+  const gone=G.players.find(p=>!p.connected && p.name===name);
+  if(gone){ remapId(gone.id, conn.peer); gone.connected=true; broadcast(); return; }
+  if(G.phase!=='lobby'){ send(conn,{t:'err',msg:'ゲームが進行中です'}); return; }
+  if(G.players.filter(p=>p.connected).length>=MAX_PL){ send(conn,{t:'err',msg:'満員です（8人まで）'}); return; }
+  addPlayer(conn.peer,name);
+  broadcast();
+}
+function remapId(oldId,newId){
+  const p=pOf(oldId); if(!p) return;
+  p.id=newId;
+  G.order=G.order.map(x=>x===oldId?newId:x);
+  G.childIds=G.childIds.map(x=>x===oldId?newId:x);
+  G.confirmedBy=G.confirmedBy.map(x=>x===oldId?newId:x);
+  if(G.parentId===oldId) G.parentId=newId;
+  if(G.subs.has(oldId)){ G.subs.set(newId,G.subs.get(oldId)); G.subs.delete(oldId); }
+  G.results.forEach(r=>{ if(r.id===oldId) r.id=newId; });
+  G.prevResults.forEach(r=>{ if(r.id===oldId) r.id=newId; });
+}
+function hostLeave(id){
+  const p=pOf(id); if(!p) return;
+  conns.delete(id);
+  if(G.phase==='lobby'){ G.players=G.players.filter(x=>x.id!==id); }
+  else p.connected=false;
+  broadcast();
+}
+
+/* ---------- 受信 ---------- */
+function hostRecv(id,d){
+  if(!G||!d) return;
+  switch(d.t){
+    case 'start':   hostStart(id); break;
+    case 'target':  hostTarget(id,d.lines); break;
+    case 'draw':    hostDraw(id,d.line); break;
+    case 'reveal':  hostReveal(id); break;
+    case 'next':    hostNextTurn(id); break;
+    case 'round':   hostNextRound(id); break;
+    case 'again':   hostAgain(id); break;
+  }
+}
+function reply(id,msg){ if(id===myId) toast(msg); else send(conns.get(id),{t:'err',msg}); }
+
+function hostStart(id){
+  if(G.phase!=='lobby'||id!=='HOST') return;
+  const act=G.players.filter(p=>p.connected);
+  if(act.length<MIN_PL){ reply(id,'2人以上で始められます'); return; }
+  G.players=act;
+  G.players.forEach(p=>p.score=0);
+  G.order=G.players.map(p=>p.id);
+  G.round=0;
+  startRound();
+}
+function startRound(){
+  G.round++;
+  if(G.round>G.order.length){ G.phase='gameEnd'; broadcast(); return; }
+  G.parentId=G.order[G.round-1];
+  const par=pOf(G.parentId);
+  if(!par||!par.connected){ startRound(); return; }       // 親が抜けたラウンドは飛ばす
+  G.childIds=G.players.filter(p=>p.id!==G.parentId&&p.connected).map(p=>p.id);
+  G.lineCount=G.childIds.length;
+  if(G.lineCount<1){ startRound(); return; }               // 子が誰もいないラウンドも飛ばす
+  G.turn=0; G.target=[]; G.confirmed=[]; G.confirmedBy=[];
+  G.subs=new Map(); G.subN=0; G.results=[]; G.prevResults=[]; G.gain={};
+  G.phase='parentDraw';
+  broadcast();
+}
+function hostTarget(id,lines){
+  if(G.phase!=='parentDraw'||id!==G.parentId) return;
+  if(!Array.isArray(lines)||lines.length!==G.lineCount){ reply(id,'線の本数が違います'); return; }
+  for(const l of lines){ if(!validLine(l)){ reply(id,'短すぎる線があります'); return; } }
+  const cl=lines.map(cleanLine);
+  for(let i=0;i<cl.length;i++) for(let j=i+1;j<cl.length;j++){
+    if(matchRate(cl[i],cl[j])>=RATE_OK){ reply(id,'ほぼ同じ線が2本あります。離して引いてください'); return; }
+  }
+  G.target=cl;
+  G.confirmed=cl.map(()=>false);
+  G.confirmedBy=cl.map(()=>null);
+  G.turn=1; G.phase='childDraw';
+  broadcast();
+}
+function hostDraw(id,line){
+  if(G.phase!=='childDraw'||G.childIds.indexOf(id)<0) return;
+  if(!validLine(line)){ reply(id,'始点と終点が近すぎます'); return; }
+  if(G.subs.has(id)) return;                 // 提出は1ターン1回
+  G.subs.set(id,{line:cleanLine(line), n:++G.subN});
+  broadcast();
+}
+function hostReveal(id){
+  if(G.phase!=='childDraw'||id!==G.parentId) return;
+  const act=G.childIds.filter(x=>{const p=pOf(x);return p&&p.connected;});
+  if(!act.every(x=>G.subs.has(x))){ reply(id,'まだ全員そろっていません'); return; }
+  resolveTurn();
+}
+/* ---------- 判定（全処理は親機で実行） ---------- */
+function resolveTurn(){
+  const subs=[...G.subs.entries()]
+    .map(([id,s])=>({id,...s}))
+    .sort((a,b)=>a.n-b.n);              // 提出が早い順＝先取り優先
+  const res=[]; G.gain={};
+  for(const s of subs){
+    let best=-1, rate=0;
+    for(let i=0;i<G.target.length;i++){
+      const r=matchRate(s.line,G.target[i]);
+      if(r>rate){ rate=r; best=i; }
+    }
+    const red = redParts(s.line,G.target);
+    let got=false;
+    if(best>=0 && rate>=RATE_OK && !G.confirmed[best]){
+      G.confirmed[best]=true;
+      G.confirmedBy[best]=s.id;
+      const p=pOf(s.id);
+      if(p){ p.score+=G.lineCount; G.gain[s.id]=(G.gain[s.id]||0)+G.lineCount; }
+      got=true;
+    }
+    res.push({id:s.id,name:nameOf(s.id),line:s.line,red,rate:Math.round(rate*1000)/10,got});
+  }
+  G.results=res;
+  if(G.confirmed.length&&G.confirmed.every(Boolean)){
+    const par=pOf(G.parentId);
+    if(par){ par.score+=G.turn; G.gain[G.parentId]=(G.gain[G.parentId]||0)+G.turn; }
+    G.phase='roundClear';
+  }else{
+    G.phase='reveal';
+  }
+  broadcast();
+}
+function hostNextTurn(id){
+  if(G.phase!=='reveal'||id!==G.parentId) return;
+  G.prevResults=G.results; G.results=[];
+  G.subs=new Map(); G.turn++;
+  G.phase='childDraw';
+  broadcast();
+}
+function hostNextRound(id){
+  if(G.phase!=='roundClear'||id!=='HOST') return;
+  if(G.round>=G.order.length){ G.phase='gameEnd'; broadcast(); return; }
+  startRound();
+}
+function hostAgain(id){
+  if(G.phase!=='gameEnd'||id!=='HOST') return;
+  G.phase='lobby'; G.round=0; G.order=[]; G.parentId=null;
+  G.childIds=[]; G.target=[]; G.confirmed=[]; G.confirmedBy=[];
+  G.results=[]; G.prevResults=[]; G.gain={}; G.turn=0; G.subs=new Map();
+  G.players.forEach(p=>p.score=0);
+  G.players=G.players.filter(p=>p.connected);
+  broadcast();
+}
+
+/* ---------- 配信 ---------- */
+function viewFor(id){
+  const isPar = id===G.parentId;
+  const reveal = (G.phase==='roundClear'||G.phase==='gameEnd');
+  const sub=G.subs.get(id);
+  return {
+    phase:G.phase, code:roomCode, me:id, hostIsMe:(id==='HOST'),
+    round:G.round, rounds:G.order.length, turn:G.turn,
+    parentId:G.parentId, parentName:G.parentId?nameOf(G.parentId):'',
+    nextParent: G.order[G.round] ? nameOf(G.order[G.round]) : '',
+    lineCount:G.lineCount,
+    players:G.players.map(p=>({
+      id:p.id,name:p.name,score:p.score,connected:p.connected,
+      parent:p.id===G.parentId, child:G.childIds.indexOf(p.id)>=0,
+      submitted:G.subs.has(p.id), gain:G.gain[p.id]||0 })),
+    confirmed:G.confirmed.map((c,i)=>c?{...G.target[i],by:nameOf(G.confirmedBy[i])}:null),
+    results:G.results, prev:G.prevResults,
+    myLine: sub?sub.line:null,
+    target: (isPar||reveal) ? G.target : null
+  };
+}
+function broadcast(){
+  if(!G) return;
+  for(const p of G.players){
+    const v=viewFor(p.id);
+    if(p.id===myId){ V=v; render(); }
+    else send(conns.get(p.id),{t:'view',v});
+  }
+}
+
+/* ============================================================
+   描画
+   ============================================================ */
+function ctxOf(cv){
+  const w=cv.clientWidth||300;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const px=Math.round(w*dpr);
+  if(cv.width!==px){ cv.width=px; cv.height=px; }
+  const ctx=cv.getContext('2d');
+  const s=cv.width/BOARD;
+  ctx.setTransform(s,0,0,s,0,0);
+  return ctx;
+}
+function stroke(ctx,l,color,w,alpha,dash){
+  ctx.save();
+  ctx.globalAlpha=alpha==null?1:alpha;
+  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap='round';
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(l.x1,l.y1); ctx.lineTo(l.x2,l.y2); ctx.stroke();
+  ctx.restore();
+}
+function dot(ctx,p,color,r){
+  ctx.save(); ctx.fillStyle=color;
+  ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+}
+/**
+ * layers = { ghosts:[{line,red}], confirmed:[l], target:[l],
+ *            lines:[l], red:[seg], preview:l, anchor:{x,y} }
+ */
+function paint(cv,L){
+  const ctx=ctxOf(cv);
+  ctx.clearRect(0,0,BOARD,BOARD);
+  ctx.fillStyle='#0a0d14'; ctx.fillRect(0,0,BOARD,BOARD);
+  ctx.strokeStyle='#1c2333'; ctx.lineWidth=1;
+  for(let i=1;i<8;i++){
+    ctx.beginPath(); ctx.moveTo(i*50,0); ctx.lineTo(i*50,BOARD); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*50); ctx.lineTo(BOARD,i*50); ctx.stroke();
+  }
+  if(L.ghosts) for(const g of L.ghosts){
+    stroke(ctx,g.line,'#eef1f6',3,.16);
+    for(const r of (g.red||[])) stroke(ctx,r,'#ff4136',3,.32);
+  }
+  if(L.target) for(const t of L.target) stroke(ctx,t,'#e8c26a',3,.55,[7,6]);
+  if(L.confirmed) for(const c of L.confirmed) if(c) stroke(ctx,c,'#4fd6b0',5,.95);
+  if(L.lines) for(const l of L.lines){
+    stroke(ctx,l,'#eef1f6',5,1);
+    dot(ctx,{x:l.x1,y:l.y1},'#eef1f6',4); dot(ctx,{x:l.x2,y:l.y2},'#eef1f6',4);
+  }
+  if(L.red) for(const r of L.red) stroke(ctx,r,'#ff4136',5,1);
+  if(L.preview){
+    const ok=lenOf(L.preview)>=MIN_LEN;
+    stroke(ctx,L.preview,ok?'#eef1f6':'#8d96ad',4,ok?.85:.5,ok?null:[6,6]);
+  }
+  if(L.anchor) dot(ctx,L.anchor,'#ff4136',6);
+}
+
+/* ============================================================
+   入力（始点→終点で直線を引く）
+   ============================================================ */
+const local={ lines:[], anchor:null, preview:null, down:null, moved:false, sent:false };
+function boardPt(e,cv){
+  const r=cv.getBoundingClientRect();
+  const c=v=>Math.max(0,Math.min(BOARD,v));
+  return { x:c((e.clientX-r.left)/r.width*BOARD), y:c((e.clientY-r.top)/r.height*BOARD) };
+}
+function canDraw(){
+  if(!V) return false;
+  if(V.phase==='parentDraw') return V.me===V.parentId && local.lines.length<V.lineCount;
+  if(V.phase==='childDraw')  return V.me!==V.parentId && !V.myLine && !local.sent;
+  return false;
+}
+function commit(a,b,fromTap){
+  const l={x1:a.x,y1:a.y,x2:b.x,y2:b.y};
+  if(lenOf(l)<MIN_LEN){
+    hint('始点と終点が近すぎます。もっと離してください。',true);
+    local.anchor=fromTap?a:null; return false;
+  }
+  if(V.phase==='childDraw') local.lines=[l];
+  else local.lines.push(l);
+  local.anchor=null; hint('');
+  return true;
+}
+function bindBoard(){
+  const cv=document.getElementById('board');
+  cv.addEventListener('pointerdown', e=>{
+    if(!canDraw()) return;
+    try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+    local.down=boardPt(e,cv); local.moved=false;
+    local.preview=null; paintDraw();
+  });
+  cv.addEventListener('pointermove', e=>{
+    if(!canDraw()) return;
+    const p=boardPt(e,cv);
+    if(local.down){
+      if(Math.hypot(p.x-local.down.x,p.y-local.down.y)>8) local.moved=true;
+      const from = local.moved ? local.down : (local.anchor||local.down);
+      local.preview={x1:from.x,y1:from.y,x2:p.x,y2:p.y};
+    }else if(local.anchor){
+      local.preview={x1:local.anchor.x,y1:local.anchor.y,x2:p.x,y2:p.y};
+    }else return;
+    paintDraw();
+  });
+  const up=e=>{
+    if(!canDraw()||!local.down) { local.down=null; return; }
+    const p=boardPt(e,cv);
+    if(local.moved) commit(local.down,p,false);
+    else if(local.anchor) commit(local.anchor,p,true);
+    else { local.anchor=p; hint('終点をタップしてください'); }
+    local.down=null; local.moved=false; local.preview=null;
+    paintDraw(); refreshDrawUI();
+  };
+  cv.addEventListener('pointerup',up);
+  cv.addEventListener('pointercancel',()=>{ local.down=null; local.moved=false; local.preview=null; paintDraw(); });
+  cv.addEventListener('pointerleave',()=>{ if(!local.down){ local.preview=null; paintDraw(); }});
+}
+function hint(t,warn){
+  const h=document.getElementById('drawHint');
+  h.textContent=t||''; h.className='hint'+(warn?' warn':'');
+}
+
+/* ============================================================
+   画面
+   ============================================================ */
+const $=id=>document.getElementById(id);
+function show(id){
+  for(const s of ['sc-menu','sc-lobby','sc-draw','sc-reveal','sc-clear','sc-end'])
+    $(s).classList.toggle('hide', s!==id);
+  $('bar').classList.toggle('hide', id==='sc-menu');
+}
+function chips(p){
+  let h='';
+  if(p.parent) h+='<span class="chip parent">親</span>';
+  if(p.id===V.me) h+='<span class="chip me">あなた</span>';
+  return h;
+}
+function playerList(el,opt){
+  opt=opt||{};
+  el.innerHTML=V.players.map(p=>{
+    let extra='';
+    if(opt.submit&&p.child) extra = p.submitted
+      ? '<span class="chip done">提出</span>' : '<span class="chip wait">考え中</span>';
+    if(opt.gain&&p.gain) extra+='<span class="gain">+'+p.gain+'</span>';
+    return '<div class="pl'+(p.connected?'':' off')+'">'+
+      '<span class="nm">'+esc(p.name)+'</span>'+chips(p)+extra+
+      '<span class="sc">'+p.score+'</span></div>';
+  }).join('');
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function pips(el){
+  const n=V.confirmed.length;
+  el.innerHTML=V.confirmed.map(c=>'<div class="pip'+(c?' on':'')+'"></div>').join('')+
+    '<span class="small" style="flex:0 0 auto;margin-left:6px">確定 '+
+    V.confirmed.filter(Boolean).length+'/'+n+'</span>';
+}
+
+function render(){
+  if(!V){ show('sc-menu'); return; }
+  // 新しい描画フェーズ／ターンに入ったら手元のキャンバスを白紙に戻す
+  const key=V.phase+':'+V.round+':'+V.turn;
+  if(key!==local.key){
+    local.key=key; local.lines=[]; local.anchor=null;
+    local.preview=null; local.down=null; local.sent=false;
+    hint('');
+  }
+  $('barCode').textContent=V.code;
+  $('barPhase').textContent = V.phase==='lobby' ? '待機中'
+    : 'ラウンド '+V.round+'/'+V.rounds+(V.turn?'・ターン '+V.turn:'');
+
+  if(V.phase==='lobby') return renderLobby();
+  if(V.phase==='parentDraw'||V.phase==='childDraw') return renderDraw();
+  if(V.phase==='reveal') return renderReveal();
+  if(V.phase==='roundClear') return renderClear();
+  if(V.phase==='gameEnd') return renderEnd();
+}
+
+function renderLobby(){
+  show('sc-lobby');
+  $('lobbyCode').textContent=V.code;
+  playerList($('lobbyList'));
+  const n=V.players.filter(p=>p.connected).length;
+  $('lobbyNote').textContent = n<MIN_PL
+    ? 'あと'+(MIN_PL-n)+'人そろうと始められます。'
+    : n+'人でプレイ。全員が1回ずつ親になります（'+n+'ラウンド）。';
+  $('btnStart').classList.toggle('hide', !V.hostIsMe);
+  $('btnStart').disabled = n<MIN_PL;
+}
+
+function renderDraw(){
+  show('sc-draw');
+  const iAmParent = V.me===V.parentId;
+  const cv=$('board');
+  if(V.phase==='parentDraw'){
+    if(iAmParent){
+      $('drawTitle').textContent='お題をつくる';
+      $('drawSub').textContent='直線'+V.lineCount+'本で図形を描いてください。子には見えません。';
+    }else{
+      $('drawTitle').textContent=V.parentName+'さんがお題を作成中';
+      $('drawSub').textContent='直線'+V.lineCount+'本の図形が用意されます。';
+    }
+  }else{
+    if(iAmParent){
+      $('drawTitle').textContent='みんなの回答を待っています';
+      $('drawSub').textContent='そろったら結果を見られます。';
+    }else{
+      $('drawTitle').textContent='線を1本描く';
+      $('drawSub').textContent='お題の'+V.lineCount+'本のうち、どれか1本だと思う線を引いてください。';
+    }
+  }
+  pips($('drawPips'));
+  $('drawPips').classList.toggle('hide', V.phase==='parentDraw');
+  paintDraw();
+  refreshDrawUI();
+  playerList($('drawList'),{submit:V.phase==='childDraw'});
+}
+function paintDraw(){
+  if(!V) return;
+  const cv=$('board');
+  const useGhost=$('chkGhost').checked;
+  const L={ confirmed:V.confirmed, lines:[], red:[], preview:local.preview, anchor:local.anchor };
+  if(V.phase==='parentDraw'){
+    if(V.me===V.parentId) L.lines=local.lines;
+  }else{
+    if(useGhost&&V.prev&&V.prev.length) L.ghosts=V.prev.map(r=>({line:r.line,red:r.red}));
+    if(V.me===V.parentId){ L.target=V.target||[]; }
+    else if(V.myLine) L.lines=[V.myLine];
+    else L.lines=local.lines;
+  }
+  paint(cv,L);
+}
+function refreshDrawUI(){
+  const iAmParent=V.me===V.parentId;
+  const bU=$('btnUndo'), bS=$('btnSubmit');
+  $('chkGhost').parentElement.classList.toggle('hide', V.phase!=='childDraw'||!(V.prev&&V.prev.length));
+  if(V.phase==='parentDraw'){
+    bU.classList.toggle('hide',!iAmParent);
+    bS.classList.toggle('hide',!iAmParent);
+    if(iAmParent){
+      const left=V.lineCount-local.lines.length;
+      bU.disabled=local.lines.length===0;
+      bS.disabled=left!==0;
+      bS.textContent='このお題で決定';
+      $('drawSub').textContent = left>0
+        ? '直線'+V.lineCount+'本で図形を描いてください。あと '+left+' 本。'
+        : '直線'+V.lineCount+'本すべて引けました。子には見えません。';
+    }
+  }else{
+    if(iAmParent){
+      bU.classList.add('hide'); bS.classList.remove('hide');
+      const kids=V.players.filter(p=>p.child&&p.connected);
+      const done=kids.filter(p=>p.submitted).length;
+      bS.textContent='結果を見る（'+done+'/'+kids.length+'）';
+      bS.disabled=done<kids.length||kids.length===0;
+      hint('点線はあなたのお題です。子には見えていません。');
+    }else{
+      bU.classList.remove('hide'); bS.classList.remove('hide');
+      const sent=!!V.myLine;
+      bU.disabled=sent||local.lines.length===0;
+      bS.disabled=sent||local.lines.length!==1;
+      bS.textContent=sent?'提出しました':'この線で決定';
+      if(sent) hint('ほかの人を待っています。');
+      else if(!local.lines.length&&!$('drawHint').textContent) hint('タップで始点、もう一度タップで終点。ドラッグでも引けます。');
+    }
+  }
+}
+
+function renderReveal(){
+  show('sc-reveal');
+  $('revTitle').textContent='ターン '+V.turn+' の結果';
+  $('revSub').textContent='赤い部分がお題と重なっていたところです。';
+  pips($('revPips'));
+  buildCells($('revGrid'),V.results);
+  const iAmParent=V.me===V.parentId;
+  $('btnNextTurn').classList.toggle('hide',!iAmParent);
+  $('revHint').textContent = iAmParent
+    ? '確定した線は全員に見えるようになりました。' : V.parentName+'さんが次のターンを始めるのを待っています。';
+  playerList($('revList'),{gain:true});
+}
+function buildCells(grid,list){
+  grid.innerHTML='';
+  for(const r of (list||[])){
+    const d=document.createElement('div');
+    d.className='cell'+(r.rate>=RATE_OK*100?' hit':'');
+    d.innerHTML='<canvas></canvas><div class="ch"><span class="cn">'+esc(r.name)+
+      (r.got?' <span class="gain">確定</span>':'')+'</span><span class="cr">'+r.rate.toFixed(1)+'%</span></div>';
+    grid.appendChild(d);
+    const cv=d.querySelector('canvas');
+    requestAnimationFrame(()=>paint(cv,{confirmed:V.confirmed,lines:[r.line],red:r.red}));
+  }
+}
+
+function renderClear(){
+  show('sc-clear');
+  $('clearSub').textContent=V.parentName+'さんのお題を '+V.turn+' ターンで解読。'+
+    V.parentName+'さんに +'+V.turn+' 点。';
+  requestAnimationFrame(()=>paint($('clearBoard'),{confirmed:V.confirmed}));
+  playerList($('clearList'),{gain:true});
+  const last=!V.nextParent;
+  const b=$('btnNextRound');
+  b.textContent=last?'最終結果を見る':'次のラウンドへ（親：'+V.nextParent+'）';
+  b.classList.toggle('hide',!V.hostIsMe);
+  $('clearNote').textContent=V.hostIsMe?'':'部屋をつくった人が進めます。';
+}
+
+function renderEnd(){
+  show('sc-end');
+  const sorted=[...V.players].sort((a,b)=>b.score-a.score);
+  $('endList').innerHTML=sorted.map((p,i)=>
+    '<div class="rank'+(i===0?' top':'')+'"><span class="n">'+(i+1)+'</span>'+
+    '<span style="flex:1">'+esc(p.name)+'</span><span class="big" style="font-size:22px">'+p.score+'</span></div>'
+  ).join('');
+  $('btnAgain').classList.toggle('hide',!V.hostIsMe);
+  $('endNote').textContent=V.hostIsMe?'':'部屋をつくった人が操作できます。';
+}
+
+/* ============================================================
+   ボタン
+   ============================================================ */
+$('btnCreate').onclick=createRoom;
+$('btnJoin').onclick=joinRoom;
+$('btnRules').onclick=()=>$('dlgRules').showModal();
+$('btnRules2').onclick=()=>$('dlgRules').showModal();
+$('btnStart').onclick=()=>toHost({t:'start'});
+$('btnUndo').onclick=()=>{ local.lines.pop(); local.anchor=null; hint(''); paintDraw(); refreshDrawUI(); };
+$('btnSubmit').onclick=()=>{
+  if(V.phase==='parentDraw'){
+    if(local.lines.length!==V.lineCount) return;
+    toHost({t:'target',lines:local.lines});   // 却下されたときのため手元の線は残す
+  }else if(V.me===V.parentId){
+    toHost({t:'reveal'});
+  }else{
+    if(local.lines.length!==1) return;
+    local.sent=true;
+    toHost({t:'draw',line:local.lines[0]});
+    refreshDrawUI();
+  }
+};
+$('btnNextTurn').onclick=()=>toHost({t:'next'});
+$('btnNextRound').onclick=()=>toHost({t:'round'});
+$('btnAgain').onclick=()=>toHost({t:'again'});
+$('chkGhost').onchange=paintDraw;
+$('inCode').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase(); });
+
+let rz;
+window.addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(V) render(); },150); });
+bindBoard();
+show('sc-menu');
+</script>
+</body>
+</html>
