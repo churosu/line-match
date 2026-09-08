@@ -105,19 +105,28 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
   border-top:1px solid var(--rule);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
 .tro{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;
   margin-bottom:6px;background:var(--panel2);border:1.5px solid transparent}
-.tro .sw{flex:0 0 auto;width:22px;height:22px;border-radius:50%;box-shadow:0 0 10px currentColor}
+.tro .sw{flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+  border:1px solid var(--rule);box-shadow:0 0 10px currentColor}
 .tro .tn{flex:0 0 auto;font-weight:800;font-size:14px}
 .tro .td{flex:1;font-size:11.5px;color:var(--dim);font-weight:600;line-height:1.35}
 .tro .tc{flex:0 0 auto;font-weight:800;color:var(--lock)}
 .tro.sel{border-color:var(--lock)}
 .tro.lock{opacity:.5}
 .tro.lock .sw{background:none!important;border:1.5px dashed var(--dim);box-shadow:none}
+#speedHud{display:flex;gap:10px}
+#speedHud .sh{flex:1;background:var(--panel);border:1px solid var(--rule);border-radius:12px;
+  padding:7px 10px 9px;text-align:center;--lc:var(--chalk)}
+#speedHud .shl{font-size:11px;font-weight:700;color:var(--dim);letter-spacing:.10em}
+#speedHud .shv{font-size:35px;font-weight:800;line-height:1.06;color:var(--chalk);
+  font-variant-numeric:tabular-nums}
+#speedHud .shu{font-size:15px;font-weight:700;margin-left:2px;opacity:.75}
+#speedHud .shv.on{color:var(--lc);text-shadow:0 0 20px var(--lc)}
 .badge{display:inline-block;margin-left:10px;padding:3px 9px;border-radius:999px;
   font-size:12px;font-weight:800;letter-spacing:.08em;vertical-align:middle;
   color:#0a0d14;background:var(--gold);box-shadow:0 0 16px rgba(232,194,106,.55)}
-#testCount button{display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.05}
-#testCount .cn{font-size:15px;font-weight:800}
-#testCount .cb{font-size:9.5px;font-weight:700;opacity:.75;font-variant-numeric:tabular-nums}
+#testCount button,#soloCount button{display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.05}
+.cn{font-size:15px;font-weight:800}
+.cb{font-size:9.5px;font-weight:700;opacity:.75;font-variant-numeric:tabular-nums}
 .cell.hit{border-color:var(--lc)}
 .cell.hit .cr{color:var(--lc)}
 .gain{font-size:11px;font-weight:800;color:var(--lock)}
@@ -195,6 +204,14 @@ dialog li{margin-bottom:7px}
         <div class="big code" id="lobbyCode"></div>
       </div>
       <div class="plist" id="lobbyList"></div>
+      <div>
+        <div class="small" style="margin-bottom:6px">モード</div>
+        <div class="row" id="lobbyMode">
+          <button data-m="0" style="flex:1">ノーマル</button>
+          <button data-m="1" style="flex:1">スピード</button>
+        </div>
+        <div class="small" id="lobbyModeNote" style="margin-top:6px"></div>
+      </div>
       <div class="small" id="lobbyNote"></div>
       <button class="primary" id="btnStart">ゲームを始める</button>
       <button class="ghost" id="btnRules2">あそびかた</button>
@@ -202,11 +219,48 @@ dialog li{margin-bottom:7px}
   </section>
 
   <!-- ============ DRAW ============ -->
-  <section id="sc-draw" class="hide">
+  <section id="sc-solo" class="hide">
     <div class="stack">
       <div>
+        <h2>ソロモード</h2>
+        <div class="small">ランダムな角度と長さのお題を、できるだけ少ないターンで解読します。</div>
+      </div>
+      <div>
+        <div class="small" style="margin-bottom:6px">モード</div>
+        <div class="row" id="soloMode">
+          <button data-m="0" style="flex:1">ノーマル</button>
+          <button data-m="1" style="flex:1">スピード</button>
+        </div>
+      </div>
+      <div>
+        <div class="small" style="margin-bottom:6px">お題の本数</div>
+        <div class="row" id="soloCount"></div>
+      </div>
+      <div style="text-align:center;padding:6px 0">
+        <div class="small" id="soloBestLabel"></div>
+        <div class="big" id="soloBestVal"></div>
+        <div class="small" id="soloBestNote" style="margin-top:4px"></div>
+      </div>
+      <button class="primary" id="btnSoloGo"></button>
+      <button class="ghost" id="btnSoloBack">メニューにもどる</button>
+    </div>
+  </section>
+
+  <section id="sc-draw" class="hide">
+    <div class="stack">
+      <div id="drawHead">
         <h2 id="drawTitle"></h2>
         <div class="small" id="drawSub"></div>
+      </div>
+      <div id="speedHud" class="hide">
+        <div class="sh">
+          <div class="shl">タイム</div>
+          <div class="shv" id="shTime">0.00</div>
+        </div>
+        <div class="sh">
+          <div class="shl" id="shRateLabel">一致率</div>
+          <div class="shv" id="shRate">–</div>
+        </div>
       </div>
       <div class="pips" id="drawPips"></div>
       <div id="testBar" class="hide">
@@ -222,7 +276,7 @@ dialog li{margin-bottom:7px}
       <div class="boardwrap"><canvas id="board" class="board"></canvas></div>
       <div class="hint" id="drawHint"></div>
       <div class="row">
-        <button id="btnUndo" style="flex:.7">1本消す</button>
+        <button id="btnClear" style="flex:.7">盤面をクリア</button>
         <button class="primary" id="btnSubmit" style="flex:1.3">決定</button>
       </div>
       <label class="small" style="display:flex;gap:8px;align-items:center">
@@ -257,6 +311,7 @@ dialog li{margin-bottom:7px}
       <div class="boardwrap"><canvas id="clearBoard" class="board"></canvas></div>
       <div class="plist" id="clearList"></div>
       <button class="primary" id="btnNextRound"></button>
+      <button class="ghost hide" id="btnTitleClear">タイトルに戻る</button>
       <div class="small" id="clearNote"></div>
     </div>
   </section>
@@ -267,6 +322,7 @@ dialog li{margin-bottom:7px}
       <h2>おわり</h2>
       <div class="stack" id="endList"></div>
       <button class="primary" id="btnAgain">同じ人でもう一度</button>
+      <button class="ghost" id="btnTitleEnd">タイトルに戻る</button>
       <div class="small" id="endNote"></div>
     </div>
   </section>
@@ -292,6 +348,12 @@ dialog li{margin-bottom:7px}
   <h3>オプション</h3>
   <p class="small" style="margin:0 0 10px">自分が描く線の色を選べます。トロフィーを獲得すると色が増えます。<br>
     獲得した記録はこの端末に保存され、ページを更新しても残ります。</p>
+  <div class="row" style="margin:0 0 14px">
+    <label class="small" style="display:flex;gap:8px;align-items:center;flex:1">
+      <input type="checkbox" id="chkSfx" style="width:auto"> 効果音</label>
+    <label class="small" style="display:flex;gap:8px;align-items:center;flex:1">
+      <input type="checkbox" id="chkBgm" style="width:auto"> BGM</label>
+  </div>
   <div id="optColors"></div>
   <p class="small" id="optNote" style="margin:12px 0 14px"></p>
   <button class="primary" style="width:100%" onclick="document.getElementById('dlgOpt').close()">閉じる</button>
@@ -334,12 +396,14 @@ const TROPHIES = [
   {id:'acc95', color:'#a8e063',  name:'若草', how:'一致率 95% 以上を出す'},
   {id:'acc99', color:'#ffd76a',  name:'金',   how:'一致率 99% 以上を出す'},
   {id:'solo3', color:'#7cc4ff',  name:'空',   how:'ソロで3本のお題を解読する'},
-  {id:'solo5', color:'#c79bff',  name:'藤',   how:'ソロで5本のお題を解読する'},
+  {id:'solo5', color:'#c79bff',  name:'藤',   how:'ソロで7本を15ターン以内に解読する'},
   {id:'solo7', color:'#ff8a6b',  name:'珊瑚', how:'ソロで7本のお題を解読する'},
-  {id:'flaw',  color:'#ff9ecb',  name:'桜',   how:'ソロで3本以上を、1本も外さずに解読する'},
-  {id:'t30',   color:'#9fb3d1',  name:'鋼',   how:'確定させた線が累計30本になる'}
+  {id:'flaw',  color:'#ff9ecb',  name:'桜',   how:'ソロで3本以上を5ターン以内に解読する'},
+  {id:'t30',   color:'#9fb3d1',  name:'鋼',   how:'確定させた線が累計30本になる'},
+  {id:'zero',  color:'#000000',  name:'黒',   how:'1ターン目に一致率 0% を出す'},
+  {id:'dash',  color:'#ffe9a8',  name:'陽',   how:'スピードで3本以上を30秒以内に解読する'}
 ];
-let ST={unlocked:[],color:MY_DEFAULT,lines:0,best:{}};
+let ST={unlocked:[],color:MY_DEFAULT,lines:0,best:{},bestT:{},sfx:true,bgm:true};
 function loadStore(){
   try{
     const raw=localStorage.getItem(STORE_KEY);
@@ -348,6 +412,9 @@ function loadStore(){
   if(!Array.isArray(ST.unlocked)) ST.unlocked=[];
   if(typeof ST.lines!=='number'||!(ST.lines>=0)) ST.lines=0;
   if(!ST.best||typeof ST.best!=='object'||Array.isArray(ST.best)) ST.best={};
+  if(!ST.bestT||typeof ST.bestT!=='object'||Array.isArray(ST.bestT)) ST.bestT={};
+  if(typeof ST.sfx!=='boolean') ST.sfx=true;
+  if(typeof ST.bgm!=='boolean') ST.bgm=true;
   if(!isOwned(ST.color)) ST.color=MY_DEFAULT;   // 未獲得の色が入っていたら白に戻す（記録は消さない）
 }
 function saveStore(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(ST)); }catch(e){} }
@@ -364,6 +431,21 @@ function recordBest(n,turn){
   ST.best[n]=turn; saveStore();
   return true;                       // 更新できた＝ベスト更新
 }
+/* スピードのベスト＝そのお題本数を解読できた最短時間（ミリ秒） */
+function bestTimeOf(n){ const v=ST.bestT[n]; return (typeof v==='number'&&v>0)?v:0; }
+function recordBestTime(n,ms){
+  const prev=bestTimeOf(n);
+  if(prev && ms>=prev) return false;
+  ST.bestT[n]=ms; saveStore();
+  return true;
+}
+/* 0.01秒まで表示する */
+function fmtTime(ms){
+  const s=Math.max(0,ms||0)/1000;
+  if(s<60) return s.toFixed(2)+'秒';
+  const m=Math.floor(s/60);
+  return m+'分'+(s-m*60).toFixed(2).padStart(5,'0')+'秒';
+}
 function unlock(id,got){
   if(!id || ST.unlocked.indexOf(id)>=0) return false;
   ST.unlocked.push(id);
@@ -373,7 +455,9 @@ function unlock(id,got){
 }
 let pendingGot=[];
 function announce(got){
-  if(got&&got.length) toast('トロフィー獲得：'+got.join('・')+'　オプションで線の色に使えます');
+  if(!got||!got.length) return;
+  toast('トロフィー獲得：'+got.join('・')+'　オプションで線の色に使えます');
+  sfx('trophy');
 }
 let sessionId=0, scoredKey=null;
 /* 自分の結果からトロフィーの達成を見る。同じターンを二重に数えないようキーで抑える。 */
@@ -392,6 +476,7 @@ function checkAchievements(){
   }
   if(mine.rate>=95) unlock('acc95',got);
   if(mine.rate>=99) unlock('acc99',got);
+  if(V.turn===1 && mine.rate<=0) unlock('zero',got);
   saveStore();
   announce(pendingGot.concat(got));      // 同じターンの獲得はまとめて1回だけ知らせる
   pendingGot=[];
@@ -410,6 +495,7 @@ function renderOptions(){
   const all=TROPHIES.length-1;
   const have=TROPHIES.filter(t=>t.id&&ST.unlocked.indexOf(t.id)>=0).length;
   $('optNote').textContent='トロフィー '+have+' / '+all+'　　確定させた線：累計 '+ST.lines+' 本';
+  $('chkSfx').checked=!!ST.sfx; $('chkBgm').checked=!!ST.bgm;
 }
 
 /* ============================================================
@@ -592,7 +678,7 @@ function readName(){
    親機：ゲームの状態
    ============================================================ */
 function initState(){
-  G={ phase:'lobby', players:[], order:[], round:0, turn:0,
+  G={ phase:'lobby', speed:false, t0:0, ms:0, last:{}, players:[], order:[], round:0, turn:0,
       parentId:null, childIds:[], lineCount:0,
       target:[], confirmed:[], confirmedBy:[],
       subs:new Map(), subN:0, results:[], prevResults:[], gain:{} };
@@ -638,6 +724,7 @@ function hostLeave(id){
 function hostRecv(id,d){
   if(!G||!d) return;
   switch(d.t){
+    case 'mode':    hostMode(id,d.speed); break;
     case 'start':   hostStart(id); break;
     case 'target':  hostTarget(id,d.lines); break;
     case 'draw':    hostDraw(id,d.line); break;
@@ -649,6 +736,11 @@ function hostRecv(id,d){
 }
 function reply(id,msg){ if(id===myId) toast(msg); else send(conns.get(id),{t:'err',msg}); }
 
+function hostMode(id,speed){
+  if(!G||G.phase!=='lobby'||id!=='HOST') return;
+  G.speed=!!speed;
+  broadcast();
+}
 function hostStart(id){
   if(G.phase!=='lobby'||id!=='HOST') return;
   const act=G.players.filter(p=>p.connected);
@@ -670,6 +762,7 @@ function startRound(){
   if(G.lineCount<1){ startRound(); return; }               // 子が誰もいないラウンドも飛ばす
   G.turn=0; G.target=[]; G.confirmed=[]; G.confirmedBy=[];
   G.subs=new Map(); G.subN=0; G.results=[]; G.prevResults=[]; G.gain={};
+  G.t0=0; G.ms=0; G.last={};
   G.phase='parentDraw';
   broadcast();
 }
@@ -685,13 +778,39 @@ function hostTarget(id,lines){
   G.confirmed=cl.map(()=>false);
   G.confirmedBy=cl.map(()=>null);
   G.turn=1; G.phase='childDraw';
+  G.t0=Date.now(); G.last={};        // スピードはここから計測する
   broadcast();
 }
 function hostDraw(id,line){
   if(G.phase!=='childDraw'||G.childIds.indexOf(id)<0) return;
   if(!validLine(line)){ reply(id,'始点と終点が近すぎます'); return; }
+  if(G.speed) return speedJudge(id,cleanLine(line));
   if(G.subs.has(id)) return;                 // 提出は1ターン1回
   G.subs.set(id,{line:cleanLine(line), n:++G.subN});
+  broadcast();
+}
+/* スピード：提出を待たず、届いた順にその場で判定する。先に85%へ届いた人が取る。 */
+function speedJudge(id,l){
+  let best=-1, rate=0;
+  for(let i=0;i<G.target.length;i++){
+    const r=matchRate(l,G.target[i]);
+    if(r>rate){ rate=r; best=i; }
+  }
+  let got=false;
+  if(best>=0 && rate>=RATE_OK && !G.confirmed[best]){
+    G.confirmed[best]=true; G.confirmedBy[best]=id;
+    const p=pOf(id);
+    if(p){ p.score+=G.lineCount; G.gain[id]=(G.gain[id]||0)+G.lineCount; }
+    got=true;
+  }
+  G.turn++;
+  G.last[id]={line:l,red:redParts(l,G.target),rate:Math.round(rate*1000)/10,got,idx:best};
+  if(G.confirmed.length&&G.confirmed.every(Boolean)){
+    G.ms=Math.max(1,Date.now()-G.t0);
+    const par=pOf(G.parentId);
+    if(par){ par.score+=G.lineCount; G.gain[G.parentId]=(G.gain[G.parentId]||0)+G.lineCount; }
+    G.phase='roundClear';
+  }
   broadcast();
 }
 function hostReveal(id){
@@ -773,7 +892,9 @@ function viewFor(id){
     confirmed:G.confirmed.map((c,i)=>c?{...G.target[i],by:nameOf(G.confirmedBy[i])}:null),
     results:G.results, prev:G.prevResults,
     myLine: sub?sub.line:null,
-    target: (isPar||reveal) ? G.target : null
+    target: (isPar||reveal) ? G.target : null,
+    speed:!!G.speed, t0:G.t0, ms:G.ms, now:Date.now(),
+    last: G.speed ? (G.last[id]||null) : null
   };
 }
 function broadcast(){
@@ -816,10 +937,25 @@ function openLocal(solo){
   peer=null; hostConn=null; conns=new Map(); isHost=false; G=null;
   net('');
   sessionId++;
-  T={ n:3, solo:!!solo, target:[], confirmed:[], turn:0, results:[], prev:[],
-      myLine:null, score:0, gain:0, phase:'parentDraw', peek:!solo };
+  T={ n:3, solo:!!solo, speed:false, t0:0, ms:0, last:null,
+      target:[], confirmed:[], turn:0, results:[], prev:[],
+      myLine:null, score:0, gain:0, phase:solo?'soloPick':'parentDraw', peek:!solo };
   clearLocal();
   testRender();
+}
+/* タイトルへ戻る。通信も手元の状態もすべて畳んでからメニューを出す。 */
+function goTitle(){
+  try{ if(peer) peer.destroy(); }catch(e){}
+  peer=null; hostConn=null; conns=new Map(); isHost=false;
+  G=null; V=null; T=null;
+  soundKey=null; scoredKey=null; pendingGot=[];
+  stopClock(); clearLocal(); net(''); sfx('clear');
+  show('sc-menu');
+}
+function soloPick(){
+  T.phase='soloPick'; T.target=[]; T.confirmed=[]; T.results=[]; T.prev=[];
+  T.myLine=null; T.turn=0; T.gain=0; T.newBest=false; T.best=0;
+  clearLocal(); testRender();
 }
 function soloStart(){
   const t=randomTarget(T.n);
@@ -827,6 +963,7 @@ function soloStart(){
   T.newBest=false; T.best=0;
   T.target=t; T.confirmed=t.map(()=>false);
   T.turn=1; T.phase='childDraw'; T.myLine=null; T.results=[]; T.prev=[]; T.gain=0;
+  T.last=null; T.ms=0; T.newBestT=false; T.t0=Date.now();
   clearLocal();
   testRender();
 }
@@ -846,6 +983,8 @@ function testView(){
     confirmed:T.confirmed.map((c,i)=>c?{...T.target[i],by:'あなた'}:null),
     results:T.results, prev:T.prev, myLine:T.myLine,
     newBest:!!T.newBest, best:T.best||0,
+    speed:!!T.speed, t0:T.t0, ms:T.ms, now:Date.now(),
+    last:T.speed?T.last:null, newBestT:!!T.newBestT, bestT:T.bestT||0,
     target:(setup||T.peek||T.phase==='roundClear') ? T.target : null
   };
 }
@@ -862,30 +1001,43 @@ function testSetTarget(lines){
 }
 function testDraw(line){
   if(!validLine(line)){ toast('始点と終点が近すぎます'); return; }
-  T.myLine=cleanLine(line);
-  const all=T.target.map(t=>matchRate(T.myLine,t));
+  const l=cleanLine(line);
+  const all=T.target.map(t=>matchRate(l,t));
   let best=-1, rate=0;
   for(let i=0;i<all.length;i++) if(all[i]>rate){ rate=all[i]; best=i; }
   let got=false; T.gain=0;
   if(best>=0 && rate>=RATE_OK && !T.confirmed[best]){
     T.confirmed[best]=true; T.score+=T.n; T.gain=T.n; got=true;
   }
-  T.results=[{ id:'ME', name:'あなた', line:T.myLine, red:redParts(T.myLine,T.target),
+  const res={ id:'ME', name:'あなた', line:l, red:redParts(l,T.target),
     rate:Math.round(rate*1000)/10, got, idx:best,
-    all:all.map(r=>Math.round(r*1000)/10) }];
-  if(T.confirmed.every(Boolean)){
-    T.score+=T.turn; T.gain+=T.turn; T.phase='roundClear';
+    all:all.map(r=>Math.round(r*1000)/10) };
+  const done=T.confirmed.every(Boolean);
+  if(T.speed){
+    /* スピードは結果画面をはさまず、盤の上に直前の1本を残したまま次を引ける */
+    T.last=res; T.myLine=null; T.results=[res];
+    if(!done) T.turn++;
+  }else{
+    T.myLine=l; T.results=[res];
+  }
+  if(done){
+    T.phase='roundClear';
+    if(T.speed){
+      T.ms=Math.max(1,Date.now()-T.t0);
+      if(T.solo){ T.newBestT=recordBestTime(T.n,T.ms); T.bestT=bestTimeOf(T.n); }
+    }else{
+      T.score+=T.turn; T.gain+=T.turn;
+      if(T.solo){ T.newBest=recordBest(T.n,T.turn); T.best=bestOf(T.n); }
+    }
     if(T.solo){
-      T.newBest=recordBest(T.n,T.turn);          // 少ないターンほど良い
-      T.best=bestOf(T.n);
       if(T.n>=3) unlock('solo3',pendingGot);
-      if(T.n>=5) unlock('solo5',pendingGot);
+      if(T.n>=7 && !T.speed && T.turn<=15) unlock('solo5',pendingGot);
       if(T.n>=7) unlock('solo7',pendingGot);
-      if(T.n>=3 && T.turn===T.n) unlock('flaw',pendingGot);   // 毎ターン確定＝1本も外していない
+      if(T.n>=3 && !T.speed && T.turn<=5) unlock('flaw',pendingGot);
+      if(T.speed && T.n>=3 && T.ms<=30000) unlock('dash',pendingGot);
       saveStore();
     }
-  }
-  else T.phase='reveal';
+  }else if(!T.speed) T.phase='reveal';
   testRender();
 }
 function testNextTurn(){
@@ -900,6 +1052,26 @@ function testReset(){
   if(T.solo) return soloStart();       // ソロは本数そのままで新しいお題へ
   testRender();
 }
+function renderSoloPick(){
+  show('sc-solo');
+  modeButtons($('soloMode'),!!T.speed,false);
+  $('soloCount').innerHTML=[1,2,3,4,5,6,7].map(n=>{
+    const b=T.speed?bestTimeOf(n):bestOf(n);
+    const lab=b?(T.speed?(b/1000).toFixed(1)+'s':b+'T'):'–';
+    return '<button class="'+(n===T.n?'primary':'ghost')+'" data-n="'+n+
+      '" style="flex:1;padding:8px 0"><span class="cn">'+n+'</span>'+
+      '<span class="cb">'+lab+'</span></button>';
+  }).join('');
+  const b=T.speed?bestTimeOf(T.n):bestOf(T.n);
+  $('soloBestLabel').textContent=T.n+'本のベスト'+(T.speed?'タイム':'');
+  $('soloBestVal').innerHTML = b
+    ? (T.speed ? fmtTime(b) : b+'<span style="font-size:15px;font-weight:700"> ターン</span>')
+    : '<span style="font-size:19px;color:var(--dim)">記録なし</span>';
+  $('soloBestNote').textContent = T.speed
+    ? '線を描いた瞬間に判定します。全部そろうまでの時間を 0.01 秒まで計ります。'
+    : '最短は '+T.n+' ターン。1ターンに引ける線は1本なので、これより速くは解けません。';
+  $('btnSoloGo').textContent=T.n+'本ではじめる';
+}
 function renderTestBar(){
   const bar=$('testBar');
   if(!V||!V.test){ bar.classList.add('hide'); return; }
@@ -909,20 +1081,14 @@ function renderTestBar(){
   $('testOpt').classList.toggle('hide',setup);
   $('chkPeek').parentElement.classList.toggle('hide',!!V.solo);   // ソロで覗けたら意味がない
   $('btnTestReset').textContent = V.solo?'別のお題にする':'お題を作り直す';
-  const bn=bestOf(T.n);
   $('testCap').textContent = setup
-    ? (V.solo ? 'お題の本数　'+(bn? T.n+'本のベスト '+bn+'ターン（最短は '+T.n+'）'
-                                 : T.n+'本の記録はまだありません（最短は '+T.n+' ターン）')
-              : 'お題の本数（'+(T.n+1)+'人プレイ相当）')
+    ? 'お題の本数（'+(T.n+1)+'人プレイ相当）'
     : (V.solo ? 'ソロモード：お題は見えません。あと '+
                 V.confirmed.filter(c=>!c).length+' 本'
               : 'テストルーム：あなたは子プレイヤーです。');
-  if(setup) $('testCount').innerHTML=[1,2,3,4,5,6,7].map(n=>{
-    const b=V.solo?bestOf(n):0;
-    return '<button class="'+(n===T.n?'primary':'ghost')+'" data-n="'+n+
-      '" style="flex:1;padding:7px 0"><span class="cn">'+n+'</span>'+
-      (V.solo?'<span class="cb">'+(b?b+'T':'–')+'</span>':'')+'</button>';
-  }).join('');
+  if(setup) $('testCount').innerHTML=[1,2,3,4,5,6,7].map(n=>
+    '<button class="'+(n===T.n?'primary':'ghost')+'" data-n="'+n+
+    '" style="flex:1;padding:9px 0;font-size:14px">'+n+'</button>').join('');
 }
 
 /* ============================================================
@@ -997,6 +1163,7 @@ function paint(cv,L){
     stroke(ctx,l,col,w,a);
     dot(ctx,{x:l.x1,y:l.y1},col,rr,a); dot(ctx,{x:l.x2,y:l.y2},col,rr,a);
   }
+  if(L.trace) stroke(ctx,L.trace,L.ink||MY_DEFAULT,4,.30);
   if(L.red) for(const r of L.red) glowLine(ctx,r,lineColor(r.i),5);
   if(L.preview){
     const ok=lenOf(L.preview)>=MIN_LEN;
@@ -1016,20 +1183,28 @@ function boardPt(e,cv){
 }
 function canDraw(){
   if(!V) return false;
-  if(V.phase==='parentDraw') return V.me===V.parentId && !V.solo && local.lines.length<V.lineCount;
+  if(V.phase==='parentDraw') return V.me===V.parentId && local.lines.length<V.lineCount;
   if(V.phase==='childDraw')  return V.me!==V.parentId && !V.myLine && !local.sent;
   return false;
 }
 function commit(a,b,fromTap){
   const l={x1:a.x,y1:a.y,x2:b.x,y2:b.y};
   if(lenOf(l)<MIN_LEN){
+    sfx('bad');
     hint('始点と終点が近すぎます。もっと離してください。',true);
     local.anchor=fromTap?a:null; return false;
   }
   if(V.phase==='childDraw') local.lines=[l];
   else local.lines.push(l);
-  local.anchor=null; hint('');
+  local.anchor=null; hint(''); sfx('line');
+  if(V&&V.speed&&V.phase==='childDraw'&&V.me!==V.parentId) speedSend(l);
   return true;
+}
+/* スピード：決定ボタンを押さずに、引いた瞬間そのまま判定へ回す */
+function speedSend(l){
+  local.lines=[]; local.preview=null;
+  if(V.test){ testDraw(l); return; }
+  toHost({t:'draw',line:l});
 }
 function bindBoard(){
   const cv=document.getElementById('board');
@@ -1056,7 +1231,7 @@ function bindBoard(){
     const p=boardPt(e,cv);
     if(local.moved) commit(local.down,p,false);
     else if(local.anchor) commit(local.anchor,p,true);
-    else { local.anchor=p; hint('終点をタップしてください'); }
+    else { local.anchor=p; sfx('point'); hint('終点をタップしてください'); }
     local.down=null; local.moved=false; local.preview=null;
     paintDraw(); refreshDrawUI();
   };
@@ -1074,7 +1249,7 @@ function hint(t,warn){
    ============================================================ */
 const $=id=>document.getElementById(id);
 function show(id){
-  for(const s of ['sc-menu','sc-lobby','sc-draw','sc-reveal','sc-clear','sc-end'])
+  for(const s of ['sc-menu','sc-solo','sc-lobby','sc-draw','sc-reveal','sc-clear','sc-end'])
     $(s).classList.toggle('hide', s!==id);
   $('bar').classList.toggle('hide', id==='sc-menu');
 }
@@ -1109,7 +1284,7 @@ function pips(el,opt){
 }
 function updatePips(){
   if(V.phase==='parentDraw'){
-    if(V.me!==V.parentId||V.solo){ $('drawPips').classList.add('hide'); return; }
+    if(V.me!==V.parentId){ $('drawPips').classList.add('hide'); return; }
     const st=[]; for(let i=0;i<V.lineCount;i++) st.push(i<local.lines.length);
     pips($('drawPips'),{states:st,label:'作図'});
   }else{
@@ -1118,6 +1293,52 @@ function updatePips(){
   $('drawPips').classList.remove('hide');
 }
 
+/* スピードの大きな表示。時間は時計から、一致率は直前の判定から。 */
+function updateHud(){
+  const on = !!(V&&V.speed&&V.phase==='childDraw');
+  $('speedHud').classList.toggle('hide',!on);
+  $('drawHead').classList.toggle('hide',on);      // 見出しの代わりに数字を主役にする
+  if(!on) return;
+  paintTime();
+  const box=$('shRate'), panel=box.parentElement;
+  if(V.me===V.parentId){                          // 親は解けないので残り本数を出す
+    $('shRateLabel').textContent='のこり';
+    box.className='shv';
+    box.innerHTML=V.confirmed.filter(c=>!c).length+'<span class="shu">本</span>';
+    return;
+  }
+  $('shRateLabel').textContent='一致率';
+  if(!V.last){ box.className='shv'; box.textContent='–'; return; }
+  box.innerHTML=V.last.rate.toFixed(1)+'<span class="shu">%</span>';
+  const hit=V.last.rate>=RATE_OK*100;
+  box.className='shv'+(hit?' on':'');
+  if(hit&&V.last.idx>=0) panel.style.setProperty('--lc',lineColor(V.last.idx));
+}
+function paintTime(){
+  const t=$('shTime'), s=Math.max(0,elapsedMs())/1000;
+  t.innerHTML = s<60
+    ? s.toFixed(2)+'<span class="shu">秒</span>'
+    : Math.floor(s/60)+'<span class="shu">分</span>'+(s%60).toFixed(2).padStart(5,'0')+'<span class="shu">秒</span>';
+}
+
+/* スピードの経過時間。親機の時計を基準にし、端末ごとのズレを補正する。 */
+let clockSkew=0, clockId=null;
+function elapsedMs(){ return (V&&V.t0) ? (Date.now()-clockSkew-V.t0) : 0; }
+function phaseLabel(){
+  if(V.speed&&V.phase==='childDraw')
+    return V.solo?'スピード・'+V.lineCount+'本':'スピード ラウンド '+V.round+'/'+V.rounds;
+  if(V.solo) return V.turn?'ソロ・ターン '+V.turn:'ソロ';
+  if(V.phase==='lobby') return '待機中';
+  return 'ラウンド '+V.round+'/'+V.rounds+(V.turn?'・ターン '+V.turn:'');
+}
+function startClock(){
+  if(clockId) return;
+  clockId=setInterval(()=>{
+    if(!V||!V.speed||V.phase!=='childDraw'){ stopClock(); return; }
+    paintTime();
+  },50);
+}
+function stopClock(){ if(clockId){ clearInterval(clockId); clockId=null; } }
 function render(){
   if(!V){ show('sc-menu'); return; }
   // 新しい描画フェーズ／ターンに入ったら手元のキャンバスを白紙に戻す
@@ -1128,11 +1349,13 @@ function render(){
     hint('');
   }
   $('barCode').textContent=V.code;
-  $('barPhase').textContent = V.solo ? (V.phase==='parentDraw'?'ソロ':'ソロ・ターン '+V.turn)
-    : V.phase==='lobby' ? '待機中'
-    : 'ラウンド '+V.round+'/'+V.rounds+(V.turn?'・ターン '+V.turn:'');
+  clockSkew = (typeof V.now==='number') ? Date.now()-V.now : 0;
+  $('barPhase').textContent = phaseLabel();
+  if(V.speed&&V.phase==='childDraw') startClock(); else stopClock();
+  phaseSound();
   checkAchievements();
 
+  if(V.phase==='soloPick') return renderSoloPick();
   if(V.phase==='lobby') return renderLobby();
   if(V.phase==='parentDraw'||V.phase==='childDraw') return renderDraw();
   if(V.phase==='reveal') return renderReveal();
@@ -1150,6 +1373,16 @@ function renderLobby(){
     : n+'人でプレイ。全員が1回ずつ親になります（'+n+'ラウンド）。';
   $('btnStart').classList.toggle('hide', !V.hostIsMe);
   $('btnStart').disabled = n<MIN_PL;
+  modeButtons($('lobbyMode'),!!V.speed,!V.hostIsMe);
+  $('lobbyModeNote').textContent = V.speed
+    ? '線を描いた瞬間に判定します。順番を待たず、早い者勝ちで線を取り合います。'
+    : '順番に1本ずつ描いて、全員そろってから答え合わせをします。';
+}
+/* モード選択のボタン列。lock のときは表示だけで押せない。 */
+function modeButtons(el,speed,lock){
+  el.innerHTML=['ノーマル','スピード'].map((t,i)=>
+    '<button class="'+((i===1)===speed?'primary':'ghost')+'" data-m="'+i+'"'+
+    (lock?' disabled':'')+' style="flex:1">'+t+'</button>').join('');
 }
 
 function renderDraw(){
@@ -1157,10 +1390,7 @@ function renderDraw(){
   const iAmParent = V.me===V.parentId;
   const cv=$('board');
   if(V.phase==='parentDraw'){
-    if(V.solo){
-      $('drawTitle').textContent='ソロモード';
-      $('drawSub').textContent='お題の本数をえらんでください。';
-    }else if(iAmParent){
+    if(iAmParent){
       $('drawTitle').textContent='お題をつくる';
       $('drawSub').textContent='直線'+V.lineCount+'本で図形を描いてください。子には見えません。';
     }else{
@@ -1168,7 +1398,14 @@ function renderDraw(){
       $('drawSub').textContent='直線'+V.lineCount+'本の図形が用意されます。';
     }
   }else{
-    if(iAmParent){
+    const left=V.confirmed.filter(c=>!c).length;
+    if(V.speed&&iAmParent){
+      $('drawTitle').textContent='みんなが解読中';
+      $('drawSub').textContent='残り'+left+'本。確定した線から見えるようになります。';
+    }else if(V.speed){
+      $('drawTitle').textContent='いそいで解読';
+      $('drawSub').textContent='残り'+left+'本。描いた瞬間に判定します。';
+    }else if(iAmParent){
       $('drawTitle').textContent='みんなの回答を待っています';
       $('drawSub').textContent='そろったら結果を見られます。';
     }else{
@@ -1180,7 +1417,7 @@ function renderDraw(){
   renderTestBar();
   paintDraw();
   refreshDrawUI();
-  playerList($('drawList'),{submit:V.phase==='childDraw'});
+  playerList($('drawList'),{submit:V.phase==='childDraw'&&!V.speed});
 }
 function paintDraw(){
   if(!V) return;
@@ -1198,6 +1435,10 @@ function paintDraw(){
     else{
       if(V.test&&V.target) L.target=V.target;   // テストルームでは答え合わせしながら引ける
       L.ink=myColor(); L.previewColor=myColor();
+      if(V.speed&&V.last&&!local.lines.length&&!local.anchor){
+        L.trace=V.last.line;                 // 直前の1本は薄い軌跡として残し
+        L.red=V.last.red;                    // 重なった部分だけ発光させる
+      }
       if(V.myLine) L.lines=[V.myLine];
       else L.lines=local.lines;
     }
@@ -1206,27 +1447,34 @@ function paintDraw(){
 }
 function refreshDrawUI(){
   const iAmParent=V.me===V.parentId;
-  const bU=$('btnUndo'), bS=$('btnSubmit');
+  const bU=$('btnClear'), bS=$('btnSubmit');
   updatePips();
+  updateHud();
   $('chkGhost').parentElement.classList.toggle('hide', V.phase!=='childDraw'||!(V.prev&&V.prev.length));
   if(V.phase==='parentDraw'){
-    bU.classList.toggle('hide',!iAmParent||!!V.solo);
+    bU.classList.toggle('hide',!iAmParent);
     bS.classList.toggle('hide',!iAmParent);
-    if(V.solo){
-      bS.disabled=false;
-      bS.textContent='この本数ではじめる';
-      $('drawSub').textContent='ランダムな角度と長さの直線'+V.lineCount+
-        '本が用意されます。できるだけ少ないターンで解読してください。';
-      hint('');
-    }else if(iAmParent){
+    if(iAmParent){
       const left=V.lineCount-local.lines.length;
-      bU.disabled=local.lines.length===0;
+      bU.disabled=!local.lines.length&&!local.anchor;
       bS.disabled=left!==0;
       bS.textContent='このお題で決定';
       $('drawSub').textContent = left>0
         ? '直線'+V.lineCount+'本で図形を描いてください。あと '+left+' 本。'
         : '直線'+V.lineCount+'本すべて引けました。子には見えません。';
     }
+  }else if(V.speed){
+    /* スピードは決定ボタンを使わない。引いた瞬間に判定されるので、直前の結果だけ出す。 */
+    bS.classList.add('hide');
+    bU.classList.toggle('hide',iAmParent);
+    bU.disabled=!local.lines.length&&!local.anchor;
+    hint(iAmParent
+      ? 'みんなが解読しています。確定した線から見えるようになります。'
+      : V.last
+        ? (V.last.got ? '線'+lineMark(V.last.idx)+' 確定！　'+V.last.rate.toFixed(1)+'%'
+                      : '一致率 '+V.last.rate.toFixed(1)+'%　もう一度')
+        : 'タップで始点、もう一度タップで終点。引いた瞬間に判定します。',
+      !!(V.last&&!V.last.got));
   }else{
     if(iAmParent){
       bU.classList.add('hide'); bS.classList.remove('hide');
@@ -1238,7 +1486,7 @@ function refreshDrawUI(){
     }else{
       bU.classList.remove('hide'); bS.classList.remove('hide');
       const sent=!!V.myLine;
-      bU.disabled=sent||local.lines.length===0;
+      bU.disabled=sent||(!local.lines.length&&!local.anchor);
       bS.disabled=sent||local.lines.length!==1;
       bS.textContent=sent?'提出しました':'この線で決定';
       if(sent) hint('ほかの人を待っています。');
@@ -1290,8 +1538,14 @@ function buildCells(grid,list){
 
 function renderClear(){
   show('sc-clear');
-  $('bestBadge').classList.toggle('hide',!(V.solo&&V.newBest));
-  $('clearSub').textContent = V.solo
+  const badge = V.solo && (V.speed?V.newBestT:V.newBest);
+  $('bestBadge').classList.toggle('hide',!badge);
+  $('clearSub').textContent = (V.speed&&V.solo)
+    ? 'お題の'+V.lineCount+'本を '+fmtTime(V.ms)+'で解読。'+
+      (V.newBestT?'ベストタイム更新です。':(V.bestT?'ベストは '+fmtTime(V.bestT)+'。':''))
+    : V.speed
+    ? 'お題の'+V.lineCount+'本を '+fmtTime(V.ms)+'で解読しました。'
+    : V.solo
     ? (V.newBest
         ? 'お題の'+V.lineCount+'本を '+V.turn+' ターンで解読。ベスト更新です。'
         : 'お題の'+V.lineCount+'本を '+V.turn+' ターンで解読。'+
@@ -1307,6 +1561,7 @@ function renderClear(){
   b.textContent = V.solo ? 'もう一度あそぶ' : V.test ? '新しいお題でもう一度'
     : (last?'最終結果を見る':'次のラウンドへ（親：'+V.nextParent+'）');
   b.classList.toggle('hide',!V.hostIsMe);
+  $('btnTitleClear').classList.toggle('hide',!V.test);   // ソロとテストはここが終わり
   $('clearNote').textContent = V.test ? '' : (V.hostIsMe?'':'部屋をつくった人が進めます。');
 }
 
@@ -1368,25 +1623,202 @@ function fitLogo(){
 }
 
 /* ============================================================
+   音
+   ============================================================ */
+/* 単一HTMLで完結させたいので、音源は持たずWeb Audioで合成する。
+   ブラウザの制限で最初の操作があるまで鳴らせないため、初回のタップで起こす。 */
+let AC=null, sfxBus=null, bgmBus=null, bgmTimer=null, bgmOn=false, audioKicked=false;
+function audioOK(){
+  if(AC) return true;
+  try{
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(!C) return false;
+    AC=new C();
+    sfxBus=AC.createGain(); sfxBus.gain.value=.30; sfxBus.connect(AC.destination);
+    bgmBus=AC.createGain(); bgmBus.gain.value=0;   bgmBus.connect(AC.destination);
+  }catch(e){ AC=null; return false; }
+  return true;
+}
+function audioResume(){ if(AC&&AC.state==='suspended') AC.resume().catch(()=>{}); }
+function kickAudio(){
+  if(audioKicked) return; audioKicked=true;
+  if(!audioOK()) return;
+  audioResume();
+  if(ST.bgm) bgmStart();
+}
+function tone(o){
+  if(!AC) return;
+  const t0=AC.currentTime+(o.at||0), d=o.d||.15;
+  const osc=AC.createOscillator(), g=AC.createGain();
+  osc.type=o.type||'sine';
+  osc.frequency.setValueAtTime(o.f,t0);
+  if(o.to) osc.frequency.exponentialRampToValueAtTime(o.to,t0+d);
+  g.gain.setValueAtTime(.0001,t0);
+  g.gain.linearRampToValueAtTime(o.v==null?.4:o.v,t0+Math.min(.02,d*.3));
+  g.gain.exponentialRampToValueAtTime(.0001,t0+d);
+  osc.connect(g); g.connect(sfxBus);
+  osc.start(t0); osc.stop(t0+d+.03);
+}
+const seq=(list,step,d,v,type)=>list.forEach((f,i)=>tone({f,d,v,type,at:i*step}));
+const SFX={
+  point : ()=>tone({f:660,d:.08,type:'triangle',v:.34}),
+  line  : ()=>{ tone({f:523,d:.09,type:'triangle',v:.36}); tone({f:784,d:.13,v:.26,at:.05}); },
+  clear : ()=>tone({f:420,to:190,d:.17,type:'triangle',v:.3}),
+  submit: ()=>{ tone({f:587,d:.1,v:.34}); tone({f:880,d:.17,v:.28,at:.07}); },
+  reveal: ()=>seq([523,659,784],.055,.22,.24),
+  lock  : ()=>seq([659,880,1319],.07,.3,.26,'triangle'),
+  win   : ()=>seq([523,659,784,1047,1319],.09,.5,.24,'triangle'),
+  best  : ()=>seq([1047,1319,1568,2093,2637],.07,.4,.2),
+  trophy: ()=>seq([784,988,1175,1568],.085,.45,.22,'triangle'),
+  bad   : ()=>tone({f:190,to:120,d:.2,type:'sawtooth',v:.18})
+};
+function sfx(n){ if(!ST.sfx||!audioOK()) return; audioResume(); const f=SFX[n]; if(f) try{ f(); }catch(e){} }
+
+/* BGM：農園や花畑を思わせる、ト長調ののんびりした曲。
+   効果音と同じ三角波と正弦波だけでつくるので、音色が地続きになる。
+   75BPM・8小節ひと回り（約26秒）で、低音／分散和音／旋律の3層。
+   setTimeout は揺れるので、音の時刻は AudioContext の時計で先読みして置く。 */
+const BGM_ROOT=196.00;                 // G3
+const BGM_BEAT=0.80;                   // 1拍0.8秒＝75BPM。1ステップは8分音符
+const BGM_LOOP=64;                     // 8小節×8ステップ
+/* 進行は G–Em–C–D–G–C–Am–D。
+   低音はスマホのスピーカーでも聞こえる高さに、分散和音は共通音が多い配置にする。 */
+const BGM_BAR=[
+  {bass:-12, arp:[0,4,7]},    // G   G3 B3 D4
+  {bass:-3,  arp:[0,4,9]},    // Em  G3 B3 E4
+  {bass:-7,  arp:[0,5,9]},    // C   G3 C4 E4
+  {bass:-5,  arp:[2,7,11]},   // D   A3 D4 F#4
+  {bass:-12, arp:[0,4,7]},    // G
+  {bass:-7,  arp:[0,5,9]},    // C
+  {bass:-10, arp:[2,5,9]},    // Am  A3 C4 E4
+  {bass:-5,  arp:[2,7,11]}    // D
+];
+/* 旋律 [開始ステップ, G4からの半音, 長さステップ]。最後の F#→G でひと回りする。 */
+const BGM_MEL=[
+  [0,0,2],[2,2,2],[4,4,4],
+  [8,7,2],[10,4,2],[12,2,4],
+  [16,0,2],[18,2,2],[20,4,2],[22,7,2],
+  [24,9,3],[27,7,3],
+  [32,4,2],[34,7,2],[36,12,4],
+  [40,9,2],[42,7,2],[44,4,4],
+  [48,5,2],[50,4,2],[52,2,4],
+  [56,2,3],[59,-1,3]
+];
+const ARP_ORDER=[0,1,2,1];
+const hz=(base,semi)=>base*Math.pow(2,semi/12);
+function bgmVoice(f,at,dur,peak,type,cut,atk){
+  const o=AC.createOscillator(), g=AC.createGain(), lp=AC.createBiquadFilter();
+  o.type=type; o.frequency.value=f;
+  lp.type='lowpass'; lp.frequency.value=cut;
+  g.gain.setValueAtTime(.0001,at);
+  g.gain.linearRampToValueAtTime(peak,at+atk);
+  g.gain.exponentialRampToValueAtTime(.0001,at+dur);
+  o.connect(lp); lp.connect(g); g.connect(bgmBus);
+  o.start(at); o.stop(at+dur+.05);
+}
+function bgmPlay(i,at){
+  const S=BGM_BEAT/2, bar=BGM_BAR[Math.floor(i/8)%8], k=i%8;
+  const v=.86+Math.random()*.14;                       // ほんの少しだけ強弱をつける
+  if(k===0) bgmVoice(hz(BGM_ROOT,bar.bass),at,BGM_BEAT*3.6,.15*v,'sine',430,.10);
+  if(k%2===0) bgmVoice(hz(BGM_ROOT,bar.arp[ARP_ORDER[k/2]]),at,BGM_BEAT*1.5,.085*v,'sine',1700,.03);
+  const p=i%BGM_LOOP;
+  if(Math.floor(i/BGM_LOOP)%2===1 && p<16) return;     // 1回おきに冒頭2小節は旋律を休む
+  for(const m of BGM_MEL) if(m[0]===p)
+    bgmVoice(hz(BGM_ROOT*2,m[1]),at,S*m[2]+.7,.115*v,'triangle',2600,.03);
+}
+let bgmNext=0, bgmI=0;
+function bgmTick(){
+  if(!bgmOn||!AC) return;
+  const ahead=AC.currentTime+.7;                       // 0.7秒先まで置いておく
+  while(bgmNext<ahead){
+    bgmPlay(bgmI,Math.max(bgmNext,AC.currentTime+.01));
+    bgmI++; bgmNext+=BGM_BEAT/2;
+  }
+  bgmTimer=setTimeout(bgmTick,140);
+}
+function bgmStart(){
+  if(bgmOn||!ST.bgm||!audioOK()) return;
+  audioResume(); bgmOn=true;
+  const t=AC.currentTime;
+  bgmBus.gain.cancelScheduledValues(t);
+  bgmBus.gain.setValueAtTime(bgmBus.gain.value||.0001,t);
+  bgmBus.gain.linearRampToValueAtTime(.50,t+2.5);      // そっと入る
+  bgmI=0; bgmNext=t+.2;
+  bgmTick();
+}
+function bgmStop(){
+  bgmOn=false;
+  if(bgmTimer){ clearTimeout(bgmTimer); bgmTimer=null; }
+  if(!AC) return;
+  try{
+    const t=AC.currentTime;
+    bgmBus.gain.cancelScheduledValues(t);
+    bgmBus.gain.setValueAtTime(bgmBus.gain.value,t);
+    bgmBus.gain.linearRampToValueAtTime(0,t+1);
+  }catch(e){}
+}
+let soundKey=null;
+/* 画面が切り替わった瞬間だけ鳴らす（再描画で二重に鳴らさない） */
+function phaseSound(){
+  if(!V) return;
+  const key=sessionId+':'+V.phase+':'+V.round+':'+V.turn;
+  if(key===soundKey) return;
+  soundKey=key;
+  if(V.phase==='reveal'){
+    const mine=V.results&&V.results.find(r=>r.id===V.me);
+    sfx(mine&&mine.got?'lock':'reveal');
+  }else if(V.phase==='roundClear'){
+    sfx(V.solo&&V.newBest?'best':'win');
+  }
+}
+
+/* ============================================================
    ボタン
    ============================================================ */
 $('btnCreate').onclick=createRoom;
 $('btnJoin').onclick=joinRoom;
 $('btnSolo').onclick=startSolo;
+$('btnSoloGo').onclick=()=>{ sfx('submit'); soloStart(); };
+$('btnSoloBack').onclick=goTitle;
+$('btnTitleEnd').onclick=goTitle;
+$('btnTitleClear').onclick=goTitle;
+$('soloMode').addEventListener('click',e=>{
+  const b=e.target&&e.target.closest?e.target.closest('button'):null;
+  if(!b||!T||!b.dataset.m) return;
+  T.speed=b.dataset.m==='1'; sfx('point'); testRender();
+});
+$('lobbyMode').addEventListener('click',e=>{
+  const b=e.target&&e.target.closest?e.target.closest('button'):null;
+  if(!b||b.disabled||!b.dataset.m||!V||!V.hostIsMe) return;
+  sfx('point'); toHost({t:'mode',speed:b.dataset.m==='1'});
+});
+$('soloCount').addEventListener('click',e=>{
+  const b=e.target&&e.target.closest?e.target.closest('button'):null;
+  if(!b||!T||!b.dataset.n) return;
+  T.n=Math.max(1,Math.min(7,+b.dataset.n));
+  sfx('point'); testRender();
+});
 $('btnRules').onclick=()=>$('dlgRules').showModal();
 $('btnRules2').onclick=()=>$('dlgRules').showModal();
 $('btnOpt').onclick=()=>{ renderOptions(); $('dlgOpt').showModal(); };
+$('chkSfx').onchange=e=>{ ST.sfx=e.target.checked; saveStore(); if(ST.sfx) sfx('point'); };
+$('chkBgm').onchange=e=>{
+  ST.bgm=e.target.checked; saveStore();
+  if(ST.bgm){ audioKicked=true; audioOK(); audioResume(); bgmStart(); } else bgmStop();
+};
 $('optColors').addEventListener('click',e=>{
   const b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(!b||b.disabled||!b.dataset.c||!isOwned(b.dataset.c)) return;
-  ST.color=b.dataset.c; saveStore(); renderOptions();
+  ST.color=b.dataset.c; saveStore(); sfx('point'); renderOptions();
   if(V) render();
 });
 $('btnStart').onclick=()=>toHost({t:'start'});
-$('btnUndo').onclick=()=>{ local.lines.pop(); local.anchor=null; hint(''); paintDraw(); refreshDrawUI(); };
+$('btnClear').onclick=()=>{                 // 線も、置いただけの点もまとめて消す
+  local.lines=[]; local.anchor=null; local.preview=null; local.down=null; local.moved=false;
+  hint(''); sfx('clear'); paintDraw(); refreshDrawUI();
+};
 $('btnSubmit').onclick=()=>{
   if(V.phase==='parentDraw'){
-    if(V.solo) return soloStart();
     if(local.lines.length!==V.lineCount) return;
     if(V.test) return testSetTarget(local.lines);
     toHost({t:'target',lines:local.lines});   // 却下されたときのため手元の線は残す
@@ -1394,14 +1826,18 @@ $('btnSubmit').onclick=()=>{
     toHost({t:'reveal'});
   }else{
     if(local.lines.length!==1) return;
-    local.sent=true;
+    local.sent=true; sfx('submit');
     if(V.test) return testDraw(local.lines[0]);
     toHost({t:'draw',line:local.lines[0]});
     refreshDrawUI();
   }
 };
 $('btnNextTurn').onclick=()=>{ if(V&&V.test) return testNextTurn(); toHost({t:'next'}); };
-$('btnNextRound').onclick=()=>{ if(V&&V.test) return testReset(); toHost({t:'round'}); };
+$('btnNextRound').onclick=()=>{
+  if(V&&V.solo) return soloPick();
+  if(V&&V.test) return testReset();
+  toHost({t:'round'});
+};
 $('btnAgain').onclick=()=>toHost({t:'again'});
 $('btnTestReset').onclick=()=>{ if(T) testReset(); };
 $('chkPeek').onchange=e=>{ if(T){ T.peek=e.target.checked; paintDraw(); } };
@@ -1419,6 +1855,8 @@ $('inCode').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperC
 let rz;
 window.addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(V) render(); },150); });
 loadStore();
+document.addEventListener('pointerdown',kickAudio);
+document.addEventListener('keydown',kickAudio);
 bindBoard();
 show('sc-menu');
 fitLogo();
