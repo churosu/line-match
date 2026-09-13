@@ -414,6 +414,7 @@ dialog li{margin-bottom:7px}
     <li>親は1人1回ずつ。全員が親を終えたらゲーム終了、得点を比べます。</li>
   </ol>
   <p class="small">線は始点と終点を決めて引きます。タップで始点、もう一度タップで終点。ドラッグでも引けます。短すぎる線は引けません。</p>
+  <p class="small">獲得した色のなかには、線の見た目そのものが変わるものもあります（亀裂・ビート・水晶）。</p>
   <p class="small"><b>サークル</b>：直線のかわりに円で遊びます。2点をタップすると、その2点を対角とする正方形に
     内接する円ができます。進め方・得点はノーマルと同じです。</p>
   <p class="small"><b>ひとりで遊ぶ</b>：本数をえらぶと、ランダムな角度と長さのお題が用意されます。何ターンで解読できるか挑戦できます。
@@ -503,6 +504,16 @@ const TROPHIES = [
    kid:{anim:['#63cbe2','#63cba4','#749ee2','#ab7ee2','#63cbe2']}},
   {id:'kiretsu', color:'kiretsu', name:'亀裂', how:'一致率 50% 以下を出さずに解読する',
    paint:{crack:true}, kid:{crack:true}},
+  {id:'beat',    color:'beat',    name:'ビート', how:'亀裂の線で、サークル7つを解読する',
+   paint:{grad:['#ff2d95','#a855f7','#22d3ee'], beat:true},
+   kid:{grad:['#d81b7a','#7c3aed','#0e8fa8'], beat:true}},
+  {id:'yuyake',  color:'yuyake',  name:'夕焼け',
+   how:'4つ以上のお題を、確定するたびに一致率が前より低い形で解読する',
+   /* 水色→白→黄 0.8秒／黄→橙 1秒／橙→赤 2秒／赤→紫 2秒／紫→紺 0.5秒（合計6.3秒） */
+   paint:{grad:['#7fe3ff','#ffffff','#ffd84d','#ff9a2e','#ff4a2b','#8b3fa8','#1b2a6b'],
+          sky:[.4,.4,1,2,2,.5]},
+   kid:{grad:['#3fb6d8','#c8c0b0','#e0a000','#d87a12','#d8321a','#6b2a88','#16214f'],
+        sky:[.4,.4,1,2,2,.5]}},
   {id:'zero',    color:'#000000',  kid:'#000000', name:'黒',   how:'1ターン目に一致率 0% を出す'}
 ];
 
@@ -557,6 +568,7 @@ function cssOf(c){
   return st ? 'linear-gradient(120deg,'+st.join(',')+')' : c;
 }
 function solidOf(c){
+  if(c&&c.sky) return c.grad[2];              // 見本などに使う代表色
   if(c&&c.crack) return '#cfe4ff';
   const st=stopsOf(c);
   return st ? st[Math.floor(st.length/2)] : c;
@@ -565,6 +577,31 @@ function mixHex(a,b,f){
   const p=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16));
   const x=p(a), y=p(b);
   return '#'+x.map((v,i)=>Math.round(v+(y[i]-v)*f).toString(16).padStart(2,'0')).join('');
+}
+/* 夕焼け：線全体がひとつの色で、時間とともに移っていく。
+   水色→白→黄→赤→紫→紺を 0.8秒／1秒／1.2秒 で渡り、折り返して戻る。 */
+function skyAt(c,t){
+  const g=c.grad, d=c.sky, total=d.reduce((a,b)=>a+b,0);
+  if(!(t>0)) return g[0];                     // 置く前は始まりの色のまま
+  if(t>=total) return g[g.length-1];          // 紺まで来たらそこで止まる
+  let i=0;
+  while(i<d.length-1 && t>d[i]){ t-=d[i]; i++; }
+  return mixHex(g[i], g[i+1], d[i] ? Math.min(1,t/d[i]) : 0);
+}
+function skyTotal(c){ return c.sky.reduce((a,b)=>a+b,0); }
+function skyNow(c){ return skyAt(c,(Date.now()/1000)%(skyTotal(c)*2)); }
+/* 置いた瞬間からの経過秒。図形の座標を鍵にして、初めて描いた時刻を覚えておく。
+   引いている最中は座標が変わり続けるので、下描きには使わない（常に0秒あつかい）。 */
+const SKY_LAG=1.5;                            // 終点は始点より、これだけ遅れて変わる
+let skyBorn={};
+function skyAge(l){
+  const k=l.x1+','+l.y1+','+l.x2+','+l.y2+','+(l.c?1:0);
+  const now=Date.now();
+  if(!skyBorn[k]){
+    if(Object.keys(skyBorn).length>80) skyBorn={};   // 増えすぎたら畳む
+    skyBorn[k]=now;
+  }
+  return (now-skyBorn[k])/1000;
 }
 function pickColor(c){                       // グラデーションからひと粒ぶんの色を選ぶ
   if(c&&c.crack) return '#cfe4ff';
@@ -620,12 +657,21 @@ function announce(got){
   toast('トロフィー獲得：'+got.join('・')+'　オプションで線の色に使えます');
   sfx('trophy');
 }
-let sessionId=0, scoredKey=null, clearKey=null;
+let sessionId=0, scoredKey=null, clearKey=null, beatKey=null;
 /* 自分の結果からトロフィーの達成を見る。同じターンを二重に数えないようキーで抑える。 */
 function checkAchievements(){
   if(!V) return;
   const got=[];
   let touched=false;
+  /* サークルを亀裂の線で解ききったとき（テストルームは色を自由に使えるので対象外） */
+  if(V.circle && V.phase==='roundClear' && V.lineCount>=7 && !freeColors()){
+    const ck='beat:'+sessionId+':'+V.round;
+    const ink=myColor();
+    if(ck!==beatKey && ink && ink.crack){
+      beatKey=ck; touched=true;
+      unlock('beat',got);
+    }
+  }
   /* スピードで解ききったとき（ソロ／対戦の勝者）のタイム系 */
   if(V.speed && V.phase==='roundClear' && (V.solo||V.winnerIsMe)){
     const ck=sessionId+':'+V.round+':clear';
@@ -799,17 +845,24 @@ function fitOf(a,b){
 function withinEdge(l){
   const lo=EDGE-0.5, hi=BOARD-EDGE+0.5;
   if(isCircle(l)){
+    /* 円は盤からはみ出してよい。中心が内側にあって、半分近く見えていれば決められる。 */
     const c=circleOf(l);
-    return c.x-c.r>=lo && c.x+c.r<=hi && c.y-c.r>=lo && c.y+c.r<=hi;
+    return c.x>=lo && c.x<=hi && c.y>=lo && c.y<=hi && visibleFrac(l)>=CIRC_SEEN;
   }
   return [l.x1,l.x2,l.y1,l.y2].every(v=>v>=lo&&v<=hi);
 }
-/** 円が盤からはみ出していないか */
-function onBoard(l){
-  if(!isCircle(l)) return true;
-  const c=circleOf(l);
-  return c.x-c.r>=-0.5 && c.x+c.r<=BOARD+0.5 && c.y-c.r>=-0.5 && c.y+c.r<=BOARD+0.5;
+/** 円周のうち、盤の中に見えている割合 */
+function visibleFrac(l){
+  if(!isCircle(l)) return 1;
+  const c=circleOf(l), N=36;
+  let on=0;
+  for(let i=0;i<N;i++){
+    const a=i/N*Math.PI*2, x=c.x+Math.cos(a)*c.r, y=c.y+Math.sin(a)*c.r;
+    if(x>=0&&x<=BOARD&&y>=0&&y<=BOARD) on++;
+  }
+  return on/N;
 }
+const CIRC_SEEN=0.45;       // これだけ見えていれば、どんな円かは決められる
 function validLine(l){
   if(!l || ![l.x1,l.y1,l.x2,l.y2].every(v=>typeof v==='number' && isFinite(v)
     && v>=-1 && v<=BOARD+1)) return false;
@@ -1229,14 +1282,16 @@ function randomTarget(n,circle){
     if(guard && guard%700===0) sim=Math.min(RATE_OK*0.96,sim+0.05);   // 詰まったら条件を緩める
     let l;
     if(circle){
-      const r=MIN_R+6+Math.random()*(BOARD*0.30-MIN_R-6);             // 半径もランダム
-      const cx=M+r+Math.random()*Math.max(1,BOARD-2*(M+r));
-      const cy=M+r+Math.random()*Math.max(1,BOARD-2*(M+r));
+      /* 盤からはみ出す円もお題にしてよい。中心が内側にあり、半分近く見えていればよい。
+         ただし2点は盤の中に置ける必要があるので、向きも含めて試す。 */
+      const r=MIN_R+6+Math.random()*(BOARD*0.42-MIN_R-6);
+      const cx=M+Math.random()*(BOARD-2*M), cy=M+Math.random()*(BOARD-2*M);
       const h=r*Math.SQRT2;                                           // 対角線の半分
       const a=Math.random()*Math.PI;                                  // 置き方もランダム
       l={x1:cx-Math.cos(a)*h, y1:cy-Math.sin(a)*h,
          x2:cx+Math.cos(a)*h, y2:cy+Math.sin(a)*h, c:1};
-      if(cx-r<M||cx+r>BOARD-M||cy-r<M||cy+r>BOARD-M) continue;
+      if(Math.min(l.x1,l.x2,l.y1,l.y2)<2||Math.max(l.x1,l.x2,l.y1,l.y2)>BOARD-2) continue;
+      if(visibleFrac(l)<CIRC_SEEN) continue;
     }else{
       const ang=Math.random()*Math.PI;                                // 角度はランダム
       const len=MIN_LEN+20+Math.random()*(BOARD*0.62-MIN_LEN-20);     // 長さもランダム
@@ -1260,7 +1315,8 @@ function openLocal(solo){
   peer=null; hostConn=null; conns=new Map(); isHost=false; G=null;
   net('');
   sessionId++;
-  T={ n:3, solo:!!solo, speed:false, circle:false, t0:0, ms:0, last:null, streak:0, allHigh:true, noLow:true,
+  T={ n:3, solo:!!solo, speed:false, circle:false, t0:0, ms:0, last:null, streak:0,
+      allHigh:true, noLow:true, desc:true, lastGot:Infinity,
       target:[], confirmed:[], turn:0, results:[], prev:[],
       myLine:null, score:0, gain:0, phase:solo?'soloPick':'parentDraw', peek:!solo };
   clearLocal();
@@ -1272,8 +1328,8 @@ function goTitle(){
   try{ if(peer) peer.destroy(); }catch(e){}
   peer=null; hostConn=null; conns=new Map(); isHost=false;
   G=null; V=null; T=null;
-  soundKey=null; scoredKey=null; clearKey=null; pendingGot=[];
-  stopClock(); petalStop(); clearLocal(); net(''); sfx('clear');
+  soundKey=null; scoredKey=null; clearKey=null; beatKey=null; pendingGot=[];
+  stopClock(); petalStop(); skyBorn={}; clearLocal(); net(''); sfx('clear');
   show('sc-menu');
 }
 function soloPick(){
@@ -1288,7 +1344,7 @@ function soloStart(){
   T.target=t; T.confirmed=t.map(()=>false);
   T.turn=1; T.phase='childDraw'; T.myLine=null; T.results=[]; T.prev=[]; T.gain=0;
   T.last=null; T.ms=0; T.newBestT=false; T.t0=Date.now(); T.streak=0;
-  T.allHigh=true; T.noLow=true;
+  T.allHigh=true; T.noLow=true; T.desc=true; T.lastGot=Infinity;
   clearLocal();
   testRender();
 }
@@ -1325,7 +1381,7 @@ function testSetTarget(lines){
   T.target=cl; T.confirmed=cl.map(()=>false);
   T.turn=1; T.phase='childDraw'; T.myLine=null; T.results=[]; T.prev=[]; T.gain=0;
   T.last=null; T.ms=0; T.newBestT=false; T.t0=Date.now();   // スピードのときの計測開始
-  T.streak=0; T.allHigh=true; T.noLow=true;
+  T.streak=0; T.allHigh=true; T.noLow=true; T.desc=true; T.lastGot=Infinity;
   testRender();
 }
 function testDraw(line){
@@ -1342,6 +1398,11 @@ function testDraw(line){
   if(T.solo){
     if(rate*100<=50) T.noLow=false;        // 亀裂：一度でも50%以下を出したら不成立
     if(got && rate*100<95) T.allHigh=false;// 水晶：確定した線がすべて95%以上か
+    if(got){                               // 夕焼け：確定するたびに一致率が下がっているか
+      const r=Math.round(rate*1000)/10;
+      if(r>=T.lastGot) T.desc=false;
+      T.lastGot=r;
+    }
     // 続けて当てた回数を数える（外すと0に戻る）
     T.streak = got ? T.streak+1 : 0;
     if(T.streak>=2) unlock('umi',pendingGot);
@@ -1371,6 +1432,7 @@ function testDraw(line){
     }
     if(T.solo){
       if(T.n>=3 && T.allHigh) unlock('crystal',pendingGot);
+      if(T.n>=4 && T.desc) unlock('yuyake',pendingGot);
       if(T.noLow) unlock('kiretsu',pendingGot);
       if(T.n>=3) unlock('solo3',pendingGot);
       if(T.n>=7 && !T.speed && T.turn<=15) unlock('solo5',pendingGot);
@@ -1453,6 +1515,7 @@ function ctxOf(cv){
   return ctx;
 }
 function paintStyle(ctx,color,l){
+  if(color&&color.sky) return skyNow(color);   // 線全体がひとつの色
   const cs=stopsOf(color);
   if(!cs) return (color&&!color.crack) ? color : '#eef1f6';
   if(![l.x1,l.y1,l.x2,l.y2].every(v=>typeof v==='number'&&isFinite(v)))
@@ -1493,8 +1556,12 @@ function stroke(ctx,l,color,w,alpha,dash,cap){
 /** 発光する線。暗い背景の上ににじみを2段重ねてから芯を描く。
  *  長さは芯そのままなので、光っても重なりの範囲を誤解させない。 */
 /* 自分の線を描く。ふつうの色のほか、光る水晶と、暗闇がのぞく亀裂に対応する。 */
-function inkLine(ctx,l,col,w,alpha){
+/* 引いている途中でも見た目が変わる線種かどうか */
+function isStyled(c){ return !!(c&&(c.anim||c.crack||c.beat||c.sky)); }
+function inkLine(ctx,l,col,w,alpha,age){
   const A=alpha==null?1:alpha;
+  if(col&&col.sky)   return skyLine(ctx,l,w,A,col,age);
+  if(col&&col.beat)  return beatLine(ctx,l,w,A,col);
   if(col&&col.crack) return crackLine(ctx,l,w,A);
   if(col&&col.anim)  return crystalLine(ctx,l,w,A,col);
   stroke(ctx,l,col,w,A);
@@ -1535,6 +1602,140 @@ function crackSeedPts(l){
   if(circ) pts[n]={x:pts[0].x, y:pts[0].y};        // 円は輪を閉じる
   return pts;
 }
+/* ビート：図形に沿って波形のように振れる線。
+   振れる回数は3〜20回。振幅は数か所に山をつくって、音が強いところ／弱いところを出す。
+   形は図形の座標から決まるので、描き直してもちらつかない。 */
+function beatPts(l){
+  const circ=isCircle(l), TAU=Math.PI*2, len=shapeLen(l)||1;
+  const seed=l.x1*7.1+l.y1*13.3+l.x2*17.7+l.y2*23.9;
+  const rnd=k=>{ const v=Math.sin(seed+k*2.399)*43758.5453; return v-Math.floor(v); };
+  /* 声の波形はこまかく振れる。回数は長さに応じて決め、図形ごとに少しゆらす。 */
+  const f=Math.max(6,Math.round(len/8*(0.75+rnd(1)*0.7)));
+  const f2=Math.max(2,Math.round(f*2.7));          // 倍音ぶん。単純な正弦波に見せない
+  const ph=rnd(3)*TAU;
+  /* ひと息ぶんの塊（音節）を2〜5個。立ち上がりが速く、ゆっくり消えていく形。 */
+  /* 線は山を多めにして、中央のあたりに重ねる。円はゆったり散らす。 */
+  const bursts = circ ? 2+Math.floor(rnd(2)*4) : 4+Math.floor(rnd(2)*5);
+  const st=[], du=[], am=[];
+  for(let i=0;i<bursts;i++){
+    const d = circ ? 0.10+rnd(20+i)*0.24 : 0.06+rnd(20+i)*0.15;
+    du.push(d);
+    /* 円は端がないのでどこに置いてもよい。
+       線は端に山がくると切れて見えるので、中央あたりに寄せる。 */
+    st.push(circ ? rnd(10+i)*0.95
+                 : Math.max(0.02, Math.min(0.96-d, 0.5-d*0.55+(rnd(10+i)-0.5)*0.46)));
+    am.push(0.45+rnd(30+i)*0.55);
+  }
+  const shape=u=>(u<0||u>1)?0:(1-Math.exp(-u*14))*Math.exp(-u*2.4)*1.35;
+  const maxA = circ ? circleOf(l).r*0.22 : Math.min(36, Math.max(10, len*0.15));
+  const S=Math.min(900,Math.max(240,f*8)), K=f*2, pts=[];
+  for(let k=0;k<=S;k++){
+    const t=k/S;
+    let e=0.04;                                    // 無音のところにも、ごくわずかな揺れ
+    for(let i=0;i<bursts;i++){
+      let d=t-st[i];
+      if(circ && d<0) d+=1;                        // 円は端でつながるので回り込ませる
+      e+=am[i]*shape(d/du[i]);
+    }
+    e=Math.min(1,e);
+    if(!circ) e*=Math.pow(Math.sin(Math.PI*t),0.8);   // 線は両端に向かって静まっていく
+    /* 山ひとつずつ高さを変える。ときどき突出させて、声らしい不ぞろいさを出す。 */
+    const key=Math.floor(t*K)%K;
+    let gn=0.45+0.9*rnd(100+key);
+    if(rnd(500+key)<0.12) gn*=1.4+rnd(600+key)*0.8;
+    const wv=Math.sin(t*f*TAU)*0.72+Math.sin(t*f2*TAU+ph)*0.28;
+    const off=Math.max(-maxA*1.3,Math.min(maxA*1.3, maxA*e*gn*wv));
+    const p=ptOnShape(l,t), nm=normalAt(l,t);
+    pts.push({x:p.x+nm.x*off, y:p.y+nm.y*off});
+  }
+  if(circ) pts[S]={x:pts[0].x, y:pts[0].y};
+  return pts;
+}
+/* 夕焼け：線そのものがぼんやり光る。色は skyNow が返す一色。 */
+/* ガウスぼかしの光を、輪郭なしで出す。
+   形そのものは画面の外に置き、影だけを画面内へ戻す。
+   輪郭のある線を何本も重ねないので、段差が見えない。 */
+const GLOW_OFF=20000;
+function glowOnly(ctx,drawPath,color,width,blur,alpha,s){
+  ctx.save();
+  ctx.globalAlpha=alpha; ctx.lineWidth=width; ctx.lineCap='round';
+  ctx.strokeStyle=color; ctx.shadowColor=color;
+  ctx.shadowBlur=blur; ctx.shadowOffsetX=GLOW_OFF*s;
+  ctx.translate(-GLOW_OFF,0);
+  drawPath(); ctx.stroke();
+  ctx.restore();
+}
+function skyLine(ctx,l,w,A,col,age){
+  const t=(age==null)?skyAge(l):age;
+  const s=(typeof ctx._s==='number'&&ctx._s>0)?ctx._s:1;
+  const circ=isCircle(l), N=16, TAU=Math.PI*2;
+  const lineGrad=()=>{
+    const gr=ctx.createLinearGradient(l.x1,l.y1,l.x2,l.y2);
+    for(let i=0;i<=8;i++) gr.addColorStop(i/8, skyAt(col, t-(i/8)*SKY_LAG));
+    return gr;
+  };
+  /* にじみ。位置ごとの色で、ぼかしだけを重ねる。
+     ぼかしの幅が継ぎ目より十分大きいので、分けても段にはならない。 */
+  const TAU2=Math.PI*2, NG=circ?12:8;
+  const segPath=i=>()=>{
+    if(circ){
+      const c=circleOf(l);
+      ctx.beginPath(); ctx.arc(c.x,c.y,c.r, i/NG*TAU2-0.08, (i+1)/NG*TAU2+0.08);
+    }else{
+      const p0=ptOnShape(l,Math.max(0,i/NG-0.03)), p1=ptOnShape(l,Math.min(1,(i+1)/NG+0.03));
+      ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y);
+    }
+  };
+  const lit=TH().glow;
+  ctx.save(); ctx.lineCap='round';
+  if(lit) ctx.globalCompositeOperation='lighter';
+  const pass=(width,blur,alpha)=>{
+    for(let i=0;i<NG;i++)
+      glowOnly(ctx,segPath(i),skyAt(col,t-((i+0.5)/NG)*SKY_LAG),width,blur,alpha,s);
+  };
+  pass(w+2, 24*s, (lit?.55:.30)*A);            // 外までやわらかく届く光
+  pass(w,   9*s,  (lit?.50:.26)*A);            // 線ぎわの明るみ
+  ctx.globalCompositeOperation='source-over';
+  ctx.shadowBlur=0; ctx.shadowOffsetX=0;
+  /* 芯。始点がいちばん進んでいて、終点に向かうほど前の色が残る。 */
+  ctx.shadowBlur=0; ctx.globalAlpha=A; ctx.lineWidth=w;
+  if(circ){
+    const c=circleOf(l);
+    for(let i=0;i<N;i++){
+      ctx.strokeStyle=skyAt(col, t-((i+0.5)/N)*SKY_LAG);
+      ctx.beginPath();
+      ctx.arc(c.x,c.y,c.r, i/N*TAU-0.04, (i+1)/N*TAU+0.04);
+      ctx.stroke();
+    }
+  }else{
+    ctx.strokeStyle=lineGrad();
+    tracePath(ctx,l); ctx.stroke();
+  }
+  ctx.restore();
+}
+function beatLine(ctx,l,w,A,col){
+  const pts=beatPts(l), s=(typeof ctx._s==='number'&&ctx._s>0)?ctx._s:1, circ=isCircle(l);
+  const path=()=>{
+    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+    if(circ) ctx.closePath();
+    ctx.stroke();
+  };
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.strokeStyle=paintStyle(ctx,col,l);
+  if(TH().glow){
+    ctx.shadowColor=solidOf(col);
+    ctx.globalCompositeOperation='lighter';
+    ctx.globalAlpha=.30*A; ctx.shadowBlur=15*s; ctx.lineWidth=Math.max(1.4,w*0.8); path();
+    ctx.globalCompositeOperation='source-over';
+    ctx.shadowBlur=0;
+  }else{
+    ctx.globalAlpha=.22*A; ctx.lineWidth=w+5; path();
+  }
+  ctx.globalAlpha=A; ctx.lineWidth=Math.max(1.6,w*0.62); path();
+  ctx.restore();
+}
+
 /* サークルのときの亀裂＝突如ひらいた穴。
    円の内側すべてが暗闇で、縁だけをランダムに欠けさせる。 */
 function crackHolePts(l){
@@ -1710,8 +1911,10 @@ function paint(cv,L){
     inkLine(ctx,l,col,w,a);
     /* 亀裂は先が細くとがるので端の丸は打たない。
        円は2点が円の外（正方形の角）にあるので、打つと紛らわしい。 */
-    if(!(col&&col.crack) && !isCircle(l)){
-      dot(ctx,{x:l.x1,y:l.y1},sc,rr,a); dot(ctx,{x:l.x2,y:l.y2},sc,rr,a);
+    if(!(col&&(col.crack||col.beat)) && !isCircle(l)){
+      let c1=sc, c2=sc;
+      if(col&&col.sky){ const t=skyAge(l); c1=skyAt(col,t); c2=skyAt(col,t-SKY_LAG); }
+      dot(ctx,{x:l.x1,y:l.y1},c1,rr,a); dot(ctx,{x:l.x2,y:l.y2},c2,rr,a);
     }
   }
   if(L.trace) inkLine(ctx,L.trace,L.ink||inkColor(),4,.30);
@@ -1721,8 +1924,8 @@ function paint(cv,L){
   }
   if(L.preview){
     const ok=isCircle(L.preview) ? circleOf(L.preview).r>=MIN_R : lenOf(L.preview)>=MIN_LEN;
-    if(ok&&L.previewColor&&(L.previewColor.anim||L.previewColor.crack))
-      inkLine(ctx,L.preview,L.previewColor,4,.85);
+    if(ok&&isStyled(L.previewColor))
+      inkLine(ctx,L.preview,L.previewColor,4,.85,0);   // 下描きはまだ置いていないので0秒
     else stroke(ctx,L.preview,ok?(L.previewColor||th.ink):'#8d96ad',4,ok?.85:.5,ok?null:[6,6]);
   }
   if(L.anchor) dot(ctx,L.anchor,solidOf(L.previewColor)||'#e8c26a',6);
@@ -1822,7 +2025,7 @@ function hint(t,warn){
    ============================================================ */
 const $=id=>document.getElementById(id);
 function show(id){
-  if(id!=='sc-draw') petalStop();
+  if(id!=='sc-draw'&&id!=='sc-reveal') petalStop();
   for(const s of ['sc-menu','sc-solo','sc-awards','sc-lobby','sc-draw','sc-reveal','sc-clear','sc-end'])
     $(s).classList.toggle('hide', s!==id);
   $('bar').classList.toggle('hide', id==='sc-menu'||id==='sc-awards');
@@ -1879,7 +2082,32 @@ function sparkPaint(){
   const t=fxTrophy();
   return (t&&SPARK_IDS.indexOf(t.id)>=0) ? colorOf(t) : null;
 }
-function animInk(){ const c=myColor(); return !!(c&&c.anim); }   // 水晶は盤も描き直す
+function animInk(){ const c=myColor(); return !!(c&&(c.anim||c.sky)); } // 水晶と夕焼けは盤も描き直す
+/* いま盤を描き直し続ける必要があるか。
+   指を離していても進むよう、線を引いているかどうかとは切り離して判定する。
+   夕焼けは紺まで行けば止まるので、そこからは描き直さない。 */
+/* 結果画面で、自分のセルの線がまだ変化しているか */
+function revealNeeds(){
+  if(!revealCell||!V||V.phase!=='reveal') return false;
+  const c=myColor();
+  if(!c) return false;
+  if(c.anim) return true;
+  if(!c.sky) return false;
+  const l=revealCell.lay.lines&&revealCell.lay.lines[0];
+  return !!l && skyAge(l)<skyTotal(c)+SKY_LAG;
+}
+function needRepaint(){
+  if(!V) return false;
+  if(V.phase!=='childDraw'&&V.phase!=='countdown'&&V.phase!=='parentDraw') return false;
+  const c=myColor();
+  if(!c) return false;
+  if(c.anim) return true;                     // 水晶は止まらない
+  if(!c.sky) return false;
+  const end=skyTotal(c)+SKY_LAG;
+  const src=petalSources();
+  if(!src.length) return !!local.lines.length; // まだ何も置いていなければ不要
+  return src.some(l=>skyAge(l)<end);
+}
 function motionOK(){
   try{ return !(window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches); }
   catch(e){ return true; }
@@ -1972,12 +2200,14 @@ function petalTick(now){
     ctx.restore();
   }
   petals=keep;
-  if(animInk()&&src.length&&now-petalBoard>60){ petalBoard=now; paintDraw(); }
-  if(petals.length||(src.length&&(pc||sc||animInk()))) petalRAF=requestAnimationFrame(petalTick);
+  const rp=needRepaint(), rv=revealNeeds();
+  if(rp&&now-petalBoard>60){ petalBoard=now; paintDraw(); }
+  if(rv&&now-petalBoard>90){ petalBoard=now; paint(revealCell.cv,revealCell.lay); }
+  if(petals.length||(src.length&&(pc||sc))||rp||rv) petalRAF=requestAnimationFrame(petalTick);
 }
 function petalStart(){
   if(petalRAF||!motionOK()) return;
-  if(!petalPaint()&&!sparkPaint()&&!animInk()) return;
+  if(!petalPaint()&&!sparkPaint()&&!needRepaint()&&!revealNeeds()) return;
   petalPrev=performance.now?performance.now():Date.now();
   petalRAF=requestAnimationFrame(petalTick);
 }
@@ -2235,6 +2465,7 @@ function renderReveal(){
   $('revSub').textContent='お題と重なった部分が、その線の色（①②…）で光ります。';
   pips($('revPips'));
   buildCells($('revGrid'),V.results);
+  petalStart();
   const iAmParent=V.me===V.parentId;
   $('btnNextTurn').classList.toggle('hide',!iAmParent&&!V.test);
   $('revHint').textContent = V.solo
@@ -2245,7 +2476,9 @@ function renderReveal(){
                  : V.parentName+'さんが次のターンを始めるのを待っています。');
   playerList($('revList'),{gain:true});
 }
+let revealCell=null;
 function buildCells(grid,list){
+  revealCell=null;
   grid.innerHTML='';
   for(const r of (list||[])){
     const d=document.createElement('div');
@@ -2267,7 +2500,9 @@ function buildCells(grid,list){
     }
     const cv=d.querySelector('canvas');
     const ink = r.id===V.me ? myColor() : MY_DEFAULT;
-    requestAnimationFrame(()=>paint(cv,{confirmed:V.confirmed,lines:[r.line],red:r.red,faint:true,ink}));
+    const lay={confirmed:V.confirmed,lines:[r.line],red:r.red,faint:true,ink};
+    if(r.id===V.me && isStyled(ink)) revealCell={cv,lay};   // 動く線種は描き直す対象
+    requestAnimationFrame(()=>paint(cv,lay));
   }
 }
 
