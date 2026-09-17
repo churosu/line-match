@@ -139,6 +139,10 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
   border-radius:999px;padding:1px 6px;flex:0 0 auto}
 .cell .rates{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;padding-top:6px;
   border-top:1px solid var(--rule);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.trow{display:flex;flex-direction:column;gap:0}
+.gchk{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);
+  padding:6px 12px 10px;margin-top:-4px}
+.gchk input{width:auto;margin:0}
 .tro{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;
   margin-bottom:6px;background:var(--panel2);border:1.5px solid transparent}
 .tro .sw{flex:0 0 auto;width:22px;height:22px;border-radius:50%;
@@ -442,6 +446,9 @@ dialog li{margin-bottom:7px}
   </ol>
   <p class="small">線は始点と終点を決めて引きます。タップで始点、もう一度タップで終点。ドラッグでも引けます。短すぎる線は引けません。</p>
   <p class="small">獲得した色のなかには、線の見た目そのものが変わるものもあります（亀裂・ビート・水晶）。</p>
+  <p class="small"><b>エンドレス</b>：持ち時間15秒から。1本とるごとに +3秒 伸びます。0秒になるまで
+    とれるだけとります。記録は<b>線の色ごと</b>に残り、実績の画面で確認できます。
+    ある色で30本とると、その色を背景の升目に使えるようになります。</p>
   <p class="small"><b>チャレンジ</b>：60秒で何本とれるかを競います。3つずつ出題され、そろうたびに
     新しい3つが出ます。画面上に のこり時間・とった本数・直前の一致率が出ます。</p>
   <p class="small"><b>サークル</b>：直線のかわりに円で遊びます。2点をタップすると、その2点を対角とする正方形に
@@ -530,7 +537,7 @@ function recRound(){
     circle:!!V.circle, speed:!!V.speed, n:V.lineCount,
     target:V.target.map(t=>({x1:t.x1,y1:t.y1,x2:t.x2,y2:t.y2,c:t.c?1:0})),
     by:(V.confirmed||[]).map(c=>c?(c.by||'あなた'):null),
-    turn:V.turn||0, ms:V.ms||0, endless:!!V.endless, total:V.total||0,
+    turn:V.turn||0, ms:V.ms||0, chal:!!V.chal, total:V.total||0,
     winner:V.winner||'', parent:V.solo?'':(V.parentName||'')
   });
   if(LOG.rounds.length>12) LOG.rounds=LOG.rounds.slice(-12);
@@ -609,7 +616,8 @@ const TROPHIES = [
   {id:'zero',    color:'#000000',  kid:'#000000', name:'黒',   how:'1ターン目に一致率 0% を出す'}
 ];
 
-let ST={unlocked:[],color:MY_DEFAULT,lines:0,best:{},bestT:{},bestE:0,sfx:true,bgm:true,light:false};
+let ST={unlocked:[],color:MY_DEFAULT,lines:0,best:{},bestT:{},bestE:0,
+  survBest:{}, gridInk:null, sfx:true,bgm:true,light:false};
 function loadStore(){
   try{
     const raw=localStorage.getItem(STORE_KEY);
@@ -620,6 +628,8 @@ function loadStore(){
   if(!ST.best||typeof ST.best!=='object'||Array.isArray(ST.best)) ST.best={};
   if(!ST.bestT||typeof ST.bestT!=='object'||Array.isArray(ST.bestT)) ST.bestT={};
   if(typeof ST.bestE!=='number'||!(ST.bestE>=0)) ST.bestE=0;
+  if(!ST.survBest||typeof ST.survBest!=='object'||Array.isArray(ST.survBest)) ST.survBest={};
+  if(typeof ST.gridInk!=='string') ST.gridInk=null;
   if(typeof ST.sfx!=='boolean') ST.sfx=true;
   if(typeof ST.bgm!=='boolean') ST.bgm=true;
   /* 以前のキッズモードはライトモードに改名。古い設定があれば引き継ぐ。既定はダーク。 */
@@ -627,6 +637,7 @@ function loadStore(){
   if(!isOwned(ST.color)) ST.color=MY_DEFAULT;   // 未獲得の色が入っていたら白に戻す（記録は消さない）
 }
 function saveStore(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(ST)); }catch(e){} }
+function colorName(){ const t=trophyOf(ST.color); return t?t.name:'白'; }
 function trophyOf(key){ return TROPHIES.find(t=>t.color===key)||null; }
 function ownedReal(key){
   const t=trophyOf(key);
@@ -728,10 +739,29 @@ function recordBest(n,turn){
   ST.best[n]=turn; saveStore();
   return true;                       // 更新できた＝ベスト更新
 }
+/* エンドレスの記録は線の色ごとに持つ。どの色でどこまで伸ばせたかを残す。 */
+function survBestOf(key){
+  const v=ST.survBest&&ST.survBest[key];
+  return (typeof v==='number'&&v>0)?v:0;
+}
+function recordSurvBest(key,n){
+  if(!key||!(n>0)||n<=survBestOf(key)) return false;
+  ST.survBest[key]=n; saveStore();
+  return true;
+}
+/** その色をグリッドに使えるか（エンドレスで規定本数に届いたか） */
+function gridReady(key){ return survBestOf(key)>=SURV_GRID; }
+/** グリッドに使う色を選ぶ。ほかの色が選ばれていれば入れ替える。 */
+function chooseGridInk(key){
+  if(key&&!(gridReady(key)&&ownedReal(key))) return false;
+  ST.gridInk = (ST.gridInk===key) ? null : (key||null);
+  saveStore();
+  return true;
+}
 /* チャレンジのベスト＝60秒で確定できた最大本数 */
-function bestEndlessOf(){ const v=ST.bestE; return (typeof v==='number'&&v>0)?v:0; }
-function recordBestEndless(n){
-  if(!(n>0) || n<=bestEndlessOf()) return false;
+function bestChalOf(){ const v=ST.bestE; return (typeof v==='number'&&v>0)?v:0; }
+function recordBestChal(n){
+  if(!(n>0) || n<=bestChalOf()) return false;
   ST.bestE=n; saveStore();
   return true;
 }
@@ -796,7 +826,7 @@ function checkAchievements(){
   /* 1本ごとの判定から見るもの。
      スピードは1本ずつその場で判定されるので、ターン番号ではなく
      判定ごとの通し番号で数える（同じターンに2本続けても取りこぼさない）。 */
-  const mine=(V.results&&V.results.find(r=>r.id===V.me)) || ((V.speed||V.endless)?V.last:null);
+  const mine=(V.results&&V.results.find(r=>r.id===V.me)) || ((V.speed||V.chal||V.surv)?V.last:null);
   if(mine){
     const key=(mine.seq!=null) ? 'q:'+sessionId+':'+V.round+':'+mine.seq
                                : sessionId+':'+V.round+':'+V.turn;
@@ -827,11 +857,21 @@ function renderOptions(){
     const sw = t.soon
       ? '<span class="sw" style="background:repeating-linear-gradient(45deg,#6b7590,#6b7590 4px,#4a5470 4px,#4a5470 8px)"></span>'
       : '<span class="sw" style="background:'+cssOf(c)+';color:'+solidOf(c)+'"></span>';
-    return '<button class="tro'+(on?'':' lock')+(sel?' sel':'')+'" data-c="'+t.color+'" disabled'.replace(' disabled',on?'':' disabled')+'>'+
+    const rec=survBestOf(t.color);
+    const canGrid=on&&gridReady(t.color);
+    const isGrid=ST.gridInk===t.color;
+    return '<div class="trow">'+
+      '<button class="tro'+(on?'':' lock')+(sel?' sel':'')+'" data-c="'+t.color+'"'+(on?'':' disabled')+'>'+
       sw+
       '<span class="tn">'+t.name+'</span>'+
-      '<span class="td">'+t.how+(t.soon?'（色は準備中）':'')+'</span>'+
-      (sel?'<span class="tc">使用中</span>':(got?'<span class="tc">達成</span>':''))+'</button>';
+      '<span class="td">'+t.how+(t.soon?'（色は準備中）':'')+
+        (rec?'<br>エンドレス最高 '+rec+' 本':'')+'</span>'+
+      (sel?'<span class="tc">使用中</span>':(got?'<span class="tc">達成</span>':''))+'</button>'+
+      (canGrid
+        ? '<label class="gchk"><input type="checkbox" data-g="'+t.color+'"'+(isGrid?' checked':'')+
+          '> グリッドに使う</label>'
+        : '')+
+      '</div>';
   }).join('');
   const all=TROPHIES.length-1;
   const have=TROPHIES.filter(t=>t.id&&ST.unlocked.indexOf(t.id)>=0).length;
@@ -1089,7 +1129,7 @@ function readName(){
    親機：ゲームの状態
    ============================================================ */
 function initState(){
-  G={ phase:'lobby', speed:false, circle:false, endless:false, speedLines:3, startAt:0, prog:{}, winner:null,
+  G={ phase:'lobby', speed:false, circle:false, chal:false, surv:false, speedLines:3, startAt:0, prog:{}, winner:null,
       t0:0, ms:0, last:{}, players:[], order:[], round:0, turn:0,
       parentId:null, childIds:[], lineCount:0,
       target:[], confirmed:[], confirmedBy:[],
@@ -1165,7 +1205,8 @@ function hostMode(id,mode){
   if(!G||G.phase!=='lobby'||id!=='HOST') return;
   G.speed  = mode==='speed';
   G.circle = mode==='circle';
-  G.endless= mode==='endless';
+  G.chal   = mode==='chal';
+  G.surv   = mode==='surv';
   broadcast();
 }
 function hostLines(id,n){
@@ -1185,9 +1226,10 @@ function hostStart(id){
 }
 function startRound(){
   G.round++;
-  const rounds = G.endless ? 1 : G.order.length;   // チャレンジは60秒の1本勝負
+  const rounds = (G.chal||G.surv) ? 1 : G.order.length;   // 時間制は1本勝負
   if(G.round>rounds){ G.phase='gameEnd'; broadcast(); return; }
-  if(G.endless) return startEndlessRound();
+  if(G.surv) return startSurvRound();
+  if(G.chal) return startChalRound();
   if(G.speed) return startSpeedRound();
   G.parentId=G.order[G.round-1];
   const par=pOf(G.parentId);
@@ -1227,13 +1269,13 @@ function startSpeedRound(){
 /* スピード：描いた瞬間に、その人の進み具合に対して判定する。 */
 /* チャレンジ（対戦）。全員で同じ3つを取り合い、そろうたびに次の3つが出る。
    60秒たったら、それぞれが取った本数で決まる。 */
-function startEndlessRound(){
+function startChalRound(){
   const act=G.players.filter(p=>p.connected);
   if(act.length<1){ G.phase='gameEnd'; broadcast(); return; }
   G.parentId=null;
   G.childIds=act.map(p=>p.id);
-  G.lineCount=ENDLESS_N;
-  G.target=randomTarget(ENDLESS_N,G.circle);
+  G.lineCount=CHAL_N;
+  G.target=randomTarget(CHAL_N,G.circle);
   G.confirmed=G.target.map(()=>false);
   G.confirmedBy=G.target.map(()=>null);
   G.prog={};
@@ -1248,12 +1290,12 @@ function startEndlessRound(){
     G.phase='childDraw'; G.t0=Date.now(); broadcast();
     setTimeout(()=>{                            // 60秒で締め切る
       if(!G||G.phase!=='childDraw'||G.cd!==token) return;
-      endlessEnd();
-    },ENDLESS_MS);
+      chalEnd();
+    },CHAL_MS);
   },COUNTDOWN);
 }
-function endlessEnd(){
-  G.ms=ENDLESS_MS;
+function chalEnd(){
+  G.ms=CHAL_MS;
   let top=0;
   G.winner=null;
   for(const id of G.childIds){
@@ -1263,7 +1305,90 @@ function endlessEnd(){
   G.phase='roundClear';
   broadcast();
 }
-function endlessJudge(id,l){
+/* エンドレス（対戦）。持ち時間は人ごと。1本とるたびに伸び、0になった人から終わる。
+   お題は全員で取り合い、3つそろうたびに新しい3つが出る。 */
+function startSurvRound(){
+  const act=G.players.filter(p=>p.connected);
+  if(act.length<1){ G.phase='gameEnd'; broadcast(); return; }
+  G.parentId=null;
+  G.childIds=act.map(p=>p.id);
+  G.lineCount=SURV_N;
+  G.target=randomTarget(SURV_N,G.circle);
+  G.confirmed=G.target.map(()=>false);
+  G.confirmedBy=G.target.map(()=>null);
+  G.prog={};
+  G.winner=null; G.ms=0; G.gain={}; G.turn=0; G.results=[]; G.prevResults=[]; G.last={}; G.seqN=0;
+  G.t0=0; G.startAt=Date.now()+COUNTDOWN;
+  G.phase='countdown';
+  const token=++cdSeq; G.cd=token;
+  broadcast();
+  setTimeout(()=>{
+    if(!G||G.phase!=='countdown'||G.cd!==token) return;
+    const end=Date.now()+SURV_MS;
+    act.forEach(p=>{ G.prog[p.id]={conf:[],n:0,done:false,ms:0,last:null,dead:end}; });
+    G.phase='childDraw'; G.t0=Date.now(); broadcast();
+    survTick(token);
+  },COUNTDOWN);
+}
+function survTick(token){
+  setTimeout(()=>{
+    if(!G||G.phase!=='childDraw'||G.cd!==token) return;
+    const now=Date.now();
+    let alive=false;
+    for(const id of G.childIds){
+      const pr=G.prog[id];
+      if(!pr) continue;
+      if(!pr.done && pr.dead<=now){ pr.done=true; pr.ms=now-G.t0; }
+      if(!pr.done) alive=true;
+    }
+    if(!alive){ survEnd(); return; }
+    broadcast();
+    survTick(token);
+  },400);
+}
+function survEnd(){
+  let top=0;
+  G.winner=null;
+  for(const id of G.childIds){
+    const pr=G.prog[id];
+    if(pr&&pr.n>top){ top=pr.n; G.winner=id; }
+  }
+  G.phase='roundClear';
+  broadcast();
+}
+function survJudge(id,l){
+  const pr=G.prog[id];
+  if(!pr||G.phase!=='childDraw'||pr.done) return;
+  if(pr.dead<=Date.now()){ pr.done=true; broadcast(); return; }
+  let best=-1, rate=0;
+  for(let i=0;i<G.target.length;i++){
+    const r=matchRate(l,G.target[i]);
+    if(r>rate){ rate=r; best=i; }
+  }
+  let got=false;
+  if(best>=0 && rate>=RATE_OK && !G.confirmed[best]){
+    G.confirmed[best]=true;
+    const p=pOf(id);
+    G.confirmedBy[best]=p?p.name:'';
+    pr.n++; pr.dead+=SURV_BONUS; got=true;       // とるたびに持ち時間が伸びる
+    if(p){ p.score+=1; G.gain[id]=(G.gain[id]||0)+1; }
+  }
+  G.seqN=(G.seqN||0)+1;
+  pr.last={line:l,red:redParts(l,G.target),rate:Math.round(rate*1000)/10,got,idx:best,
+    seq:G.seqN, id:id, fit: best>=0?fitOf(l,G.target[best]):''};
+  G.turn++;
+  if(G.confirmed.every(Boolean)){
+    const t=randomTarget(SURV_N,G.circle);
+    if(t.length===SURV_N){
+      G.target=t;
+      G.confirmed=t.map(()=>false);
+      G.confirmedBy=t.map(()=>null);
+      for(const k of G.childIds){ const q=G.prog[k]; if(q) q.last=null; }
+    }
+  }
+  broadcast();
+}
+function chalJudge(id,l){
   const pr=G.prog[id];
   if(!pr||G.phase!=='childDraw') return;
   let best=-1, rate=0;
@@ -1284,8 +1409,8 @@ function endlessJudge(id,l){
     seq:G.seqN, id:id, fit: best>=0?fitOf(l,G.target[best]):''};
   G.turn++;
   if(G.confirmed.every(Boolean)){              // そろったら次の3つ
-    const t=randomTarget(ENDLESS_N,G.circle);
-    if(t.length===ENDLESS_N){
+    const t=randomTarget(CHAL_N,G.circle);
+    if(t.length===CHAL_N){
       G.target=t;
       G.confirmed=t.map(()=>false);
       G.confirmedBy=t.map(()=>null);
@@ -1342,7 +1467,8 @@ function hostDraw(id,line){
   if(G.phase!=='childDraw'||G.childIds.indexOf(id)<0) return;
   const sh=asShape(line||{},G.circle);
   if(!validLine(sh)){ reply(id,G.circle?'円が小さすぎます':'始点と終点が近すぎます'); return; }
-  if(G.endless) return endlessJudge(id,cleanLine(sh));
+  if(G.surv) return survJudge(id,cleanLine(sh));
+  if(G.chal) return chalJudge(id,cleanLine(sh));
   if(G.speed) return speedJudge(id,cleanLine(sh));
   if(G.subs.has(id)) return;                 // 提出は1ターン1回
   G.subs.set(id,{line:cleanLine(sh), n:++G.subN});
@@ -1416,15 +1542,15 @@ function viewFor(id){
   const isPar = id===G.parentId;
   const reveal = (G.phase==='roundClear'||G.phase==='gameEnd');
   const sub=G.subs.get(id);
-  const pr = (G.speed||G.endless) ? (G.prog[id]||{conf:[],n:0,done:false,ms:0,last:null}) : null;
+  const pr = (G.speed||G.chal||G.surv) ? (G.prog[id]||{conf:[],n:0,done:false,ms:0,last:null}) : null;
   return {
     phase:G.phase, code:roomCode, me:id, hostIsMe:(id==='HOST'),
-    round:G.round, rounds:(G.endless?1:G.order.length), turn:G.turn,
+    round:G.round, rounds:((G.chal||G.surv)?1:G.order.length), turn:G.turn,
     parentId:G.parentId, parentName:G.parentId?nameOf(G.parentId):'',
     nextParent: G.order[G.round] ? nameOf(G.order[G.round]) : '',
     lineCount:G.lineCount,
     players:G.players.map(p=>{
-      const q=(G.speed||G.endless)?(G.prog[p.id]||null):null;
+      const q=(G.speed||G.chal||G.surv)?(G.prog[p.id]||null):null;
       return {
         id:p.id,name:p.name,score:p.score,connected:p.connected,
         parent:p.id===G.parentId, child:G.childIds.indexOf(p.id)>=0,
@@ -1436,9 +1562,10 @@ function viewFor(id){
       : G.confirmed.map((c,i)=>c?{...G.target[i],by:nameOf(G.confirmedBy[i])}:null),
     results:G.results, prev:G.prevResults,
     myLine: sub?sub.line:null,
-    target: (G.speed||G.endless) ? (reveal?G.target:null) : ((isPar||reveal)?G.target:null),
-    speed:!!G.speed, circle:!!G.circle, endless:!!G.endless, speedLines:G.speedLines,
-    limit:ENDLESS_MS, total:(G.prog[id]&&G.prog[id].n)||0,
+    target: (G.speed||G.chal||G.surv) ? (reveal?G.target:null) : ((isPar||reveal)?G.target:null),
+    speed:!!G.speed, circle:!!G.circle, chal:!!G.chal, surv:!!G.surv, speedLines:G.speedLines,
+    limit:CHAL_MS, total:(G.prog[id]&&G.prog[id].n)||0,
+    left: (G.surv&&G.prog[id]) ? Math.max(0,G.prog[id].dead-Date.now()) : 0,
     t0:G.t0, startAt:G.startAt, ms:G.ms, now:Date.now(),
     winner: G.winner?nameOf(G.winner):'', winnerIsMe: G.winner===id,
     myProg: pr?pr.n:0, done: pr?pr.done:false, myMs: pr?pr.ms:0,
@@ -1501,7 +1628,7 @@ function openLocal(solo){
   peer=null; hostConn=null; conns=new Map(); isHost=false; G=null;
   net('');
   sessionId++;
-  T={ n:3, solo:!!solo, speed:false, circle:false, endless:false, total:0,
+  T={ n:3, solo:!!solo, speed:false, circle:false, chal:false, surv:false, total:0, dead:0,
       t0:0, ms:0, last:null, streak:0,
       allHigh:true, noLow:true, desc:true, lastGot:Infinity, noGhost:true,
       target:[], confirmed:[], turn:0, results:[], prev:[],
@@ -1526,7 +1653,8 @@ function soloPick(){
 }
 function soloStart(){
   soloRun++;                                   // ソロは1問ごとに別の記録にする
-  if(T.endless) T.n=ENDLESS_N;                 // チャレンジは3つずつ出す
+  if(T.chal) T.n=CHAL_N;                 // チャレンジは3つずつ出す
+  if(T.surv) T.n=SURV_N;
   const t=randomTarget(T.n,T.circle);
   if(t.length!==T.n){ toast('お題をつくれませんでした。もう一度どうぞ'); return; }
   T.newBest=false; T.best=0;
@@ -1535,25 +1663,45 @@ function soloStart(){
   T.last=null; T.ms=0; T.newBestT=false; T.t0=Date.now(); T.streak=0; T.seq=0;
   T.allHigh=true; T.noLow=true; T.desc=true; T.lastGot=Infinity; T.noGhost=true;
   T.total=0;
+  T.dead=Date.now()+SURV_MS;                   // エンドレスの持ち時間
+  T.newBestS=false; T.bestS=survBestOf(ST.color);
   clearLocal();
   testRender();
 }
-/* チャレンジ：3つそろうたびに、新しい3つを出し直す */
-function endlessRefill(){
-  const t=randomTarget(ENDLESS_N,T.circle);
-  if(t.length!==ENDLESS_N) return;
+/* エンドレス：1本とるたびに持ち時間が伸びる。0になったら終わり。 */
+function survLeft(){ return Math.max(0, T.dead-Date.now()); }
+function survRefill(){
+  const t=randomTarget(SURV_N,T.circle);
+  if(t.length!==SURV_N) return;
   T.target=t; T.confirmed=t.map(()=>false);
   T.prev=[]; T.last=null;
 }
-function endlessLeft(){ return Math.max(0, ENDLESS_MS-(Date.now()-T.t0)); }
+function survFinish(){
+  if(!T||!T.surv||T.phase!=='childDraw') return;
+  T.ms=0; T.phase='roundClear';
+  if(T.solo){
+    T.newBestS=recordSurvBest(ST.color,T.total);
+    T.bestS=survBestOf(ST.color);
+    saveStore();
+  }
+  testRender();
+}
+/* チャレンジ：3つそろうたびに、新しい3つを出し直す */
+function chalRefill(){
+  const t=randomTarget(CHAL_N,T.circle);
+  if(t.length!==CHAL_N) return;
+  T.target=t; T.confirmed=t.map(()=>false);
+  T.prev=[]; T.last=null;
+}
+function chalLeft(){ return Math.max(0, CHAL_MS-(Date.now()-T.t0)); }
 /* 時間切れ。ここまでに確定した本数が結果になる。 */
-function endlessFinish(){
-  if(!T||!T.endless||T.phase!=='childDraw') return;
-  T.ms=ENDLESS_MS;
+function chalFinish(){
+  if(!T||!T.chal||T.phase!=='childDraw') return;
+  T.ms=CHAL_MS;
   T.phase='roundClear';
   if(T.solo){
-    T.newBestE=recordBestEndless(T.total);
-    T.bestE=bestEndlessOf();
+    T.newBestE=recordBestChal(T.total);
+    T.bestE=bestChalOf();
     const n=T.total;
     if(n>=5)  unlock('honoo',pendingGot);
     if(n>=10) unlock('kohaku',pendingGot);
@@ -1571,8 +1719,9 @@ function clearLocal(){
 function testView(){
   const setup = T.phase==='parentDraw';
   return {
-    test:true, solo:!!T.solo, circle:!!T.circle, endless:!!T.endless, total:T.total||0,
-    limit:ENDLESS_MS,
+    test:true, solo:!!T.solo, circle:!!T.circle, chal:!!T.chal, surv:!!T.surv,
+    total:T.total||0, limit:CHAL_MS, left:T.surv?survLeft():0,
+    newBestS:!!T.newBestS, bestS:T.bestS||0,
     phase:T.phase, code:T.solo?'SOLO':TEST_CODE, me:'ME', hostIsMe:true,
     round:1, rounds:1, turn:T.turn,
     parentId: setup?'ME':'TARGET', parentName:'テスト', nextParent:'',
@@ -1583,7 +1732,7 @@ function testView(){
     results:T.results, prev:T.prev, myLine:T.myLine,
     newBest:!!T.newBest, best:T.best||0,
     speed:!!T.speed, t0:T.t0, ms:T.ms, now:Date.now(),
-    last:(T.speed||T.endless)?T.last:null, newBestT:!!T.newBestT, bestT:T.bestT||0,
+    last:(T.speed||T.chal||T.surv)?T.last:null, newBestT:!!T.newBestT, bestT:T.bestT||0,
     newBestE:!!T.newBestE, bestE:T.bestE||0,
     target:(setup||T.peek||T.phase==='roundClear') ? T.target : null
   };
@@ -1634,12 +1783,21 @@ function testDraw(line){
     fit: best>=0?fitOf(l,T.target[best]):'',
     all:all.map(r=>Math.round(r*1000)/10) };
   const done=T.confirmed.every(Boolean);
-  if(T.endless){
+  if(T.surv){
+    if(got){ T.total++; T.dead+=SURV_BONUS; }   // 1本とるごとに時間が伸びる
+    T.last=res; T.myLine=null; T.results=[res];
+    T.turn++;
+    if(done) survRefill();
+    if(survLeft()<=0) return survFinish();
+    testRender();
+    return;
+  }
+  if(T.chal){
     if(got) T.total++;
     T.last=res; T.myLine=null; T.results=[res];
     T.turn++;
-    if(done) endlessRefill();                  // そろったら次の3つへ
-    if(endlessLeft()<=0) return endlessFinish();
+    if(done) chalRefill();                  // そろったら次の3つへ
+    if(chalLeft()<=0) return chalFinish();
     testRender();
     return;
   }
@@ -1695,20 +1853,25 @@ function renderSoloPick(){
       '" style="flex:1;padding:8px 0"><span class="cn">'+n+'</span>'+
       '<span class="cb">'+lab+'</span></button>';
   }).join('');
-  $('soloCount').classList.toggle('hide',!!T.endless);
+  $('soloCount').classList.toggle('hide',!!(T.chal||T.surv));
   const U=T.circle?'つ':'本';
-  const b=T.endless?bestEndlessOf():(T.speed?bestTimeOf(T.n):bestOf(T.n));
-  $('soloBestLabel').textContent=T.endless?'チャレンジのベスト':(T.n+U+'のベスト'+(T.speed?'タイム':''));
+  const b=T.surv?survBestOf(ST.color):(T.chal?bestChalOf():(T.speed?bestTimeOf(T.n):bestOf(T.n)));
+  $('soloBestLabel').textContent=
+    T.surv?('エンドレスのベスト（'+colorName()+'）'):
+    T.chal?'チャレンジのベスト':(T.n+U+'のベスト'+(T.speed?'タイム':''));
   $('soloBestVal').innerHTML = b
-    ? (T.endless ? b+'<span style="font-size:15px;font-weight:700"> '+U+'</span>'
+    ? ((T.chal||T.surv) ? b+'<span style="font-size:15px;font-weight:700"> '+U+'</span>'
       : T.speed ? fmtTime(b) : b+'<span style="font-size:15px;font-weight:700"> ターン</span>')
     : '<span style="font-size:19px;color:var(--dim)">記録なし</span>';
-  $('soloBestNote').textContent = T.endless
-    ? '60秒で何本とれるか。'+ENDLESS_N+U+'そろうたびに、新しいお題が出ます。'
+  $('soloBestNote').textContent = T.surv
+    ? '持ち時間'+(SURV_MS/1000)+'秒から。1本とるごとに +'+(SURV_BONUS/1000)+
+      '秒。記録は線の色ごとに残ります。'+SURV_GRID+U+'でその色をグリッドに使えます。'
+    : T.chal
+    ? '60秒で何本とれるか。'+CHAL_N+U+'そろうたびに、新しいお題が出ます。'
     : T.speed
     ? '線を描いた瞬間に判定します。全部そろうまでの時間を 0.01 秒まで計ります。'
     : '最短は '+T.n+' ターン。1ターンに引ける線は1本なので、これより速くは解けません。';
-  $('btnSoloGo').textContent=T.endless?'はじめる':(T.n+U+'ではじめる');
+  $('btnSoloGo').textContent=(T.chal||T.surv)?'はじめる':(T.n+U+'ではじめる');
 }
 function renderTestBar(){
   const bar=$('testBar');
@@ -2423,6 +2586,19 @@ function dot(ctx,p,color,r,alpha){
  * layers = { ghosts:[{line,red}], confirmed:[l], target:[l],
  *            lines:[l], red:[seg], preview:l, anchor:{x,y} }
  */
+/** 升目に使う色。選ばれていなければ null。 */
+function gridInkStyle(){
+  const key=ST.gridInk;
+  if(!key||!gridReady(key)||!ownedReal(key)) return null;
+  const t=trophyOf(key);
+  if(!t) return null;
+  const c=colorOf(t);
+  if(!c) return null;
+  if(c.sky) return skyAt(c,skyTotal(c));            // 夕焼けは終わりの色で
+  if(c.grad||c.anim) return c;                      // グラデーションはそのまま
+  if(c.crack||c.rose||c.candle||c.star||c.meteor||c.beat) return solidOf(c);
+  return c;
+}
 function paint(cv,L){
   const ctx=ctxOf(cv);
   /* 前の描画で残った状態を必ず捨ててから始める。
@@ -2445,12 +2621,19 @@ function paint(cv,L){
   const gs=(typeof ctx._s==='number'&&ctx._s>0)?ctx._s:1;
   const gw=Math.max(1,Math.round(((typeof ctx._dpr==='number'&&ctx._dpr>0)?ctx._dpr:1)*0.75));
   const off=(gw%2)?0.5:0;
-  ctx.strokeStyle=grid; ctx.lineWidth=gw/gs;
+  /* エンドレスで規定本数に届いた色は、升目の色として使える。
+     線の飾り（花や炎など）は14本ぶん描くと重いので、色だけを借りる。 */
+  const gi=gridInkStyle();
+  ctx.lineWidth=(gi?gw*1.4:gw)/gs;
+  ctx.globalAlpha=gi?0.6:1;
   for(let i=1;i<8;i++){
     const v=(Math.round(i*50*gs)+off)/gs;
+    ctx.strokeStyle=gi?paintStyle(ctx,gi,{x1:v,y1:0,x2:v,y2:BOARD}):grid;
     ctx.beginPath(); ctx.moveTo(v,0); ctx.lineTo(v,BOARD); ctx.stroke();
+    ctx.strokeStyle=gi?paintStyle(ctx,gi,{x1:0,y1:v,x2:BOARD,y2:v}):grid;
     ctx.beginPath(); ctx.moveTo(0,v); ctx.lineTo(BOARD,v); ctx.stroke();
   }
+  ctx.globalAlpha=1;
   if(L.ghosts) for(const g of L.ghosts){
     stroke(ctx,g.line,th.ink,3,.16);
     for(const r of (g.red||[]))
@@ -2551,7 +2734,7 @@ function commit(a,b,fromTap){
   if(V.phase==='childDraw') local.lines=[l];
   else local.lines.push(l);
   local.anchor=null; hint(''); sfx('line'); petalStart();
-  if(V&&(V.speed||V.endless)&&V.phase==='childDraw'&&V.me!==V.parentId) speedSend(l);
+  if(V&&(V.speed||V.chal||V.surv)&&V.phase==='childDraw'&&V.me!==V.parentId) speedSend(l);
   return true;
 }
 /* スピード：決定ボタンを押さずに、引いた瞬間そのまま判定へ回す */
@@ -2712,7 +2895,7 @@ function petalSources(){
   if(V.phase!=='childDraw'&&V.phase!=='countdown') return [];
   if(V.myLine) return [V.myLine];
   if(local.lines.length) return local.lines;
-  if((V.speed||V.endless)&&V.last&&!local.anchor) return [V.last.line];
+  if((V.speed||V.chal||V.surv)&&V.last&&!local.anchor) return [V.last.line];
   return [];
 }
 function spawnSpark(l,col){
@@ -2825,13 +3008,13 @@ function updatePips(){
 
 /* スピードの大きな表示。時間は時計から、一致率は直前の判定から。 */
 function updateHud(){
-  const on = !!(V&&(V.speed||V.endless)&&(V.phase==='childDraw'||V.phase==='countdown'));
+  const on = !!(V&&(V.speed||V.chal||V.surv)&&(V.phase==='childDraw'||V.phase==='countdown'));
   $('speedHud').classList.toggle('hide',!on);
   $('drawHead').classList.toggle('hide',on);      // 見出しの代わりに数字を主役にする
   if(!on) return;
   paintTime();
-  $('shCountBox').classList.toggle('hide',!V.endless);
-  if(V.endless) $('shCount').innerHTML=(V.total||0)+'<span class="shu">本</span>';
+  $('shCountBox').classList.toggle('hide',!(V.chal||V.surv));
+  if(V.chal||V.surv) $('shCount').innerHTML=(V.total||0)+'<span class="shu">本</span>';
   const box=$('shRate'), panel=box.parentElement;
   panel.style.removeProperty('--lc');
   if(V.phase==='countdown'){
@@ -2854,8 +3037,9 @@ function updateHud(){
 }
 function paintTime(){
   const t=$('shTime');
-  if(V&&V.endless&&V.phase==='childDraw'){
-    const left=Math.max(0,(V.limit||ENDLESS_MS)-elapsedMs())/1000;
+  if(V&&(V.chal||V.surv)&&V.phase==='childDraw'){
+    const left=V.surv ? (V.left||0)/1000
+                      : Math.max(0,(V.limit||CHAL_MS)-elapsedMs())/1000;
     t.className='shv'+(left<=10?' on':'');
     t.parentElement.style.setProperty('--lc','var(--signal)');
     t.innerHTML=left.toFixed(1)+'<span class="shu">秒</span>';
@@ -2878,7 +3062,8 @@ function paintTime(){
 let clockSkew=0, clockId=null;
 function elapsedMs(){ return (V&&V.t0) ? (Date.now()-clockSkew-V.t0) : 0; }
 function phaseLabel(){
-  if(V.endless) return V.solo?'チャレンジ':'チャレンジ R'+V.round;
+  if(V.surv) return V.solo?'エンドレス':'エンドレス R'+V.round;
+  if(V.chal) return V.solo?'チャレンジ':'チャレンジ R'+V.round;
   if(V.speed&&(V.phase==='childDraw'||V.phase==='countdown'))
     return V.solo ? 'スピード・'+V.lineCount+unitOf(V)
          : V.test ? 'スピード・テスト'
@@ -2890,9 +3075,11 @@ function phaseLabel(){
 function startClock(){
   if(clockId) return;
   clockId=setInterval(()=>{
-    if(!V||(!V.speed&&!V.endless)||(V.phase!=='childDraw'&&V.phase!=='countdown')){ stopClock(); return; }
+    if(!V||(!V.speed&&!V.chal&&!V.surv)||(V.phase!=='childDraw'&&V.phase!=='countdown')){ stopClock(); return; }
+    if(V.surv&&T&&T.surv) V.left=survLeft();
     paintTime();
-    if(V.endless&&T&&T.endless&&endlessLeft()<=0) endlessFinish();   // 時間切れ
+    if(V.chal&&T&&T.chal&&chalLeft()<=0) chalFinish();   // 時間切れ
+    if(V.surv&&T&&T.surv&&survLeft()<=0) survFinish();
   },50);
 }
 function stopClock(){ if(clockId){ clearInterval(clockId); clockId=null; } }
@@ -2908,7 +3095,7 @@ function render(){
   $('barCode').textContent=V.code;
   clockSkew = (typeof V.now==='number') ? Date.now()-V.now : 0;
   $('barPhase').textContent = phaseLabel();
-  if((V.speed||V.endless)&&(V.phase==='childDraw'||V.phase==='countdown')) startClock(); else stopClock();
+  if((V.speed||V.chal||V.surv)&&(V.phase==='childDraw'||V.phase==='countdown')) startClock(); else stopClock();
   phaseSound();
   recRound();
   checkAchievements();
@@ -2944,20 +3131,28 @@ function renderLobby(){
     : '順番に親と子を交代します。1本ずつ描いて、全員そろってから答え合わせ。';
 }
 /* モード選択のボタン列。lock のときは表示だけで押せない。 */
-const MODES=[['normal','ノーマル'],['circle','サークル'],['speed','スピード'],['endless','チャレンジ']];
+const MODES=[['normal','ノーマル'],['circle','サークル'],['speed','スピード'],
+             ['chal','チャレンジ'],['surv','エンドレス']];
 function modeOf(o){
   if(!o) return 'normal';
-  if(o.endless) return 'endless';
+  if(o.surv) return 'surv';
+  if(o.chal) return 'chal';
   if(o.speed) return 'speed';
   if(o.circle) return 'circle';
   return 'normal';
 }
-const ENDLESS_MS=60000;      // 制限時間
-const ENDLESS_N=3;           // 一度に出るお題の数
+const CHAL_MS=60000;      // チャレンジの制限時間
+const CHAL_N=3;           // 一度に出るお題の数
+const SURV_MS=15000;      // エンドレスの持ち時間
+const SURV_BONUS=3000;    // 1本とるごとに伸びる時間
+const SURV_N=3;
+const SURV_GRID=30;       // この本数でグリッドに使えるようになる
 function modeButtons(el,cur,lock){
+  el.style.flexWrap='wrap';
   el.innerHTML=MODES.map(([k,t])=>
     '<button class="'+(k===cur?'primary':'ghost')+'" data-m="'+k+'"'+
-    (lock?' disabled':'')+' style="flex:1;padding:9px 0;font-size:12px">'+t+'</button>').join('');
+    (lock?' disabled':'')+
+    ' style="flex:1 1 30%;min-width:88px;padding:9px 0;font-size:12px">'+t+'</button>').join('');
 }
 
 function renderDraw(){
@@ -2975,9 +3170,13 @@ function renderDraw(){
     }
   }else{
     const left=V.confirmed.filter(c=>!c).length;
-    if(V.endless){
+    if(V.surv){
+      $('drawTitle').textContent='エンドレス';
+      $('drawSub').textContent='1本とるごとに +'+(SURV_BONUS/1000)+'秒。'+
+        '0秒になるまで、とれるだけとってください。';
+    }else if(V.chal){
       $('drawTitle').textContent='チャレンジ';
-      $('drawSub').textContent='60秒で何本とれるか。'+ENDLESS_N+
+      $('drawSub').textContent='60秒で何本とれるか。'+CHAL_N+
         (V.circle?'つ':'本')+'そろうたびに新しいお題が出ます。';
     }else if(V.speed){
       $('drawTitle').textContent='いそいで解読';
@@ -2997,8 +3196,8 @@ function renderDraw(){
   paintDraw();
   petalStart();
   refreshDrawUI();
-  playerList($('drawList'),{submit:V.phase==='childDraw'&&!V.speed&&!V.endless,
-    prog:(!!V.speed||!!V.endless)&&!V.solo});
+  playerList($('drawList'),{submit:V.phase==='childDraw'&&!V.speed&&!V.chal&&!V.surv,
+    prog:(!!V.speed||!!V.chal||!!V.surv)&&!V.solo});
 }
 /* 前のターンの結果を重ねて表示しているか */
 function ghostOn(){
@@ -3022,7 +3221,7 @@ function paintDraw(){
     else{
       if(V.test&&V.target) L.target=V.target;   // テストルームでは答え合わせしながら引ける
       L.ink=myColor(); L.previewColor=myColor();
-      if((V.speed||V.endless)&&V.last&&!local.lines.length&&!local.anchor){
+      if((V.speed||V.chal||V.surv)&&V.last&&!local.lines.length&&!local.anchor){
         L.trace=V.last.line;                 // 直前の1本は薄い軌跡として残し
         L.red=V.last.red;                    // 重なった部分だけ発光させる
       }
@@ -3050,7 +3249,7 @@ function refreshDrawUI(){
         ? '直線'+V.lineCount+'本で図形を描いてください。あと '+left+' 本。'
         : '直線'+V.lineCount+'本すべて引けました。子には見えません。';
     }
-  }else if(V.speed||V.endless){
+  }else if(V.speed||V.chal||V.surv){
     /* その場で判定するので決定ボタンは使わない。直前の結果だけ出す。 */
     bS.classList.add('hide');
     bU.classList.toggle('hide',iAmParent||V.phase==='countdown'||!!V.done);
@@ -3133,12 +3332,16 @@ function buildCells(grid,list){
 
 function renderClear(){
   show('sc-clear');
-  $('clearTitle').textContent=V.endless?'FINISH':'CLEAR';
-  const badge = V.solo ? (V.endless?V.newBestE:(V.speed?V.newBestT:V.newBest))
+  $('clearTitle').textContent=(V.chal||V.surv)?'FINISH':'CLEAR';
+  const badge = V.solo ? (V.surv?V.newBestS:(V.chal?V.newBestE:(V.speed?V.newBestT:V.newBest)))
                        : (V.speed&&V.winnerIsMe);
   $('bestBadge').classList.toggle('hide',!badge);
   const U=unitOf(V), NU=V.lineCount+U;
-  if(V.endless){
+  if(V.surv){
+    $('clearSub').textContent=(V.total||0)+U+' 確定しました。'+
+      (V.newBestS?'この色での自己ベスト更新です。':(V.bestS?'この色のベストは '+V.bestS+U+'。':''))+
+      (V.newBestS&&V.total>=SURV_GRID?'　この色をグリッドに使えるようになりました。':'');
+  }else if(V.chal){
     $('clearSub').textContent='60秒で '+(V.total||0)+U+' 確定しました。'+
       (V.newBestE?'自己ベスト更新です。':(V.bestE?'ベストは '+V.bestE+U+'。':''));
   }else
@@ -3426,7 +3629,7 @@ let soundKey=null, lastSoundKey=null;
 /* 画面が切り替わった瞬間だけ鳴らす（再描画で二重に鳴らさない） */
 function phaseSound(){
   if(!V) return;
-  if((V.speed||V.endless)&&V.last){          // その場判定のモードは1本ごとに鳴らす
+  if((V.speed||V.chal||V.surv)&&V.last){  // その場判定のモードは1本ごとに鳴らす
     const l=V.last.line, lk=[l.x1,l.y1,l.x2,l.y2,V.last.rate].join(',');
     if(lk!==lastSoundKey){ lastSoundKey=lk; sfx(V.last.got?'lock':'reveal'); }
   }
@@ -3522,8 +3725,9 @@ $('testMode').addEventListener('click',e=>{
   const b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(!b||!T||!b.dataset.m||T.phase!=='parentDraw') return;
   const m=b.dataset.m;
-  T.speed=m==='speed'; T.circle=m==='circle'; T.endless=m==='endless';
-  if(T.endless) T.n=ENDLESS_N;
+  T.speed=m==='speed'; T.circle=m==='circle'; T.chal=m==='chal'; T.surv=m==='surv';
+  if(T.chal) T.n=CHAL_N;
+  if(T.surv) T.n=SURV_N;
   local.lines=[]; local.anchor=null; local.preview=null;   // 形が変わるので描きかけは消す
   sfx('point'); testRender();
 });
@@ -3531,8 +3735,9 @@ $('soloMode').addEventListener('click',e=>{
   const b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(!b||!T||!b.dataset.m) return;
   const m=b.dataset.m;
-  T.speed=m==='speed'; T.circle=m==='circle'; T.endless=m==='endless';
-  if(T.endless) T.n=ENDLESS_N;
+  T.speed=m==='speed'; T.circle=m==='circle'; T.chal=m==='chal'; T.surv=m==='surv';
+  if(T.chal) T.n=CHAL_N;
+  if(T.surv) T.n=SURV_N;
   sfx('point'); testRender();
 });
 $('lobbyLines').addEventListener('click',e=>{
@@ -3581,6 +3786,13 @@ $('btnBack').onclick=()=>{
 };
 $('btnQuitNo').onclick=()=>$('dlgQuit').close();
 $('btnQuitYes').onclick=()=>{ $('dlgQuit').close(); goTitle(); };
+$('optColors').addEventListener('change',e=>{
+  const b=e.target;
+  if(!b||!b.dataset||!b.dataset.g) return;
+  chooseGridInk(b.dataset.g);                 // ほかの色が選ばれていれば入れ替わる
+  sfx('point'); renderOptions();
+  if(V) render();
+});
 $('optColors').addEventListener('click',e=>{
   const b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(!b||b.disabled||!b.dataset.c||!isOwned(b.dataset.c)) return;
