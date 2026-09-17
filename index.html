@@ -350,6 +350,10 @@ dialog li{margin-bottom:7px}
           <div class="shl">タイム</div>
           <div class="shv" id="shTime">0.00</div>
         </div>
+        <div class="sh hide" id="shCountBox">
+          <div class="shl">本数</div>
+          <div class="shv" id="shCount">0</div>
+        </div>
         <div class="sh">
           <div class="shl" id="shRateLabel">一致率</div>
           <div class="shv" id="shRate">–</div>
@@ -403,7 +407,7 @@ dialog li{margin-bottom:7px}
   <section id="sc-clear" class="hide">
     <div class="stack">
       <div>
-        <h2 style="color:var(--lock)">CLEAR<span id="bestBadge" class="badge hide">BEST</span></h2>
+        <h2 style="color:var(--lock)"><span id="clearTitle">CLEAR</span><span id="bestBadge" class="badge hide">BEST</span></h2>
         <div class="small" id="clearSub"></div>
       </div>
       <div class="boardwrap"><canvas id="clearBoard" class="board"></canvas></div>
@@ -438,6 +442,8 @@ dialog li{margin-bottom:7px}
   </ol>
   <p class="small">線は始点と終点を決めて引きます。タップで始点、もう一度タップで終点。ドラッグでも引けます。短すぎる線は引けません。</p>
   <p class="small">獲得した色のなかには、線の見た目そのものが変わるものもあります（亀裂・ビート・水晶）。</p>
+  <p class="small"><b>チャレンジ</b>：60秒で何本とれるかを競います。3つずつ出題され、そろうたびに
+    新しい3つが出ます。画面上に のこり時間・とった本数・直前の一致率が出ます。</p>
   <p class="small"><b>サークル</b>：直線のかわりに円で遊びます。2点をタップすると、その2点を対角とする正方形に
     内接する円ができます。進め方・得点はノーマルと同じです。</p>
   <p class="small"><b>ひとりで遊ぶ</b>：本数をえらぶと、ランダムな角度と長さのお題が用意されます。何ターンで解読できるか挑戦できます。
@@ -524,7 +530,7 @@ function recRound(){
     circle:!!V.circle, speed:!!V.speed, n:V.lineCount,
     target:V.target.map(t=>({x1:t.x1,y1:t.y1,x2:t.x2,y2:t.y2,c:t.c?1:0})),
     by:(V.confirmed||[]).map(c=>c?(c.by||'あなた'):null),
-    turn:V.turn||0, ms:V.ms||0,
+    turn:V.turn||0, ms:V.ms||0, endless:!!V.endless, total:V.total||0,
     winner:V.winner||'', parent:V.solo?'':(V.parentName||'')
   });
   if(LOG.rounds.length>12) LOG.rounds=LOG.rounds.slice(-12);
@@ -587,10 +593,23 @@ const TROPHIES = [
    how:'星空の線で、スピードの7つを30秒以内に解読する',
    paint:{grad:['#ffffff','#bcd8ff','#4a6ad0'], meteor:1},
    kid:{grad:['#20305e','#3a58a8','#7a92d0'], meteor:1}},
+  {id:'honoo',   color:'honoo',   name:'炎',   how:'チャレンジで 5本以上とる',
+   paint:{anim:['#ff2d00','#ff7a00','#ffd200','#fff3b0','#ff7a00','#ff2d00'], glow:'#ff8a00'},
+   kid:{anim:['#d02000','#e06500','#d8a000','#e0b840','#e06500','#d02000'], glow:'#e06500'}},
+  {id:'kohaku',  color:'kohaku',  name:'紅白', how:'チャレンジで 10本以上とる',
+   paint:{grad:['#ffffff','#e8203c'], twist:1},
+   kid:{grad:['#c9bda9','#c0102c'], twist:1}},
+  {id:'rosoku',  color:'rosoku',  name:'蝋燭', how:'チャレンジで 15本以上とる',
+   paint:{grad:['#fffaf0','#efe4cc'], candle:1},
+   kid:{grad:['#c2ad84','#a08c66'], candle:1}},
+  {id:'bara',    color:'bara',    name:'薔薇', how:'チャレンジで 20本以上とる',
+   paint:{grad:['#2f5d2a','#1d3a1a'], rose:1, petal:'#e01030', petalRate:0.1},
+   kid:{grad:['#2f5d2a','#1d3a1a'], rose:1, petal:'#c00a28', petalRate:0.1}},
+  {id:'e30',     color:'e30',     name:'？？？', how:'チャレンジで 30本以上とる', soon:1},
   {id:'zero',    color:'#000000',  kid:'#000000', name:'黒',   how:'1ターン目に一致率 0% を出す'}
 ];
 
-let ST={unlocked:[],color:MY_DEFAULT,lines:0,best:{},bestT:{},sfx:true,bgm:true,light:false};
+let ST={unlocked:[],color:MY_DEFAULT,lines:0,best:{},bestT:{},bestE:0,sfx:true,bgm:true,light:false};
 function loadStore(){
   try{
     const raw=localStorage.getItem(STORE_KEY);
@@ -600,6 +619,7 @@ function loadStore(){
   if(typeof ST.lines!=='number'||!(ST.lines>=0)) ST.lines=0;
   if(!ST.best||typeof ST.best!=='object'||Array.isArray(ST.best)) ST.best={};
   if(!ST.bestT||typeof ST.bestT!=='object'||Array.isArray(ST.bestT)) ST.bestT={};
+  if(typeof ST.bestE!=='number'||!(ST.bestE>=0)) ST.bestE=0;
   if(typeof ST.sfx!=='boolean') ST.sfx=true;
   if(typeof ST.bgm!=='boolean') ST.bgm=true;
   /* 以前のキッズモードはライトモードに改名。古い設定があれば引き継ぐ。既定はダーク。 */
@@ -610,12 +630,17 @@ function saveStore(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(ST)); }
 function trophyOf(key){ return TROPHIES.find(t=>t.color===key)||null; }
 function ownedReal(key){
   const t=trophyOf(key);
-  return !!t && (t.id===null || ST.unlocked.indexOf(t.id)>=0);
+  if(!t||t.soon) return false;            // 色はまだ用意していない実績
+  return t.id===null || ST.unlocked.indexOf(t.id)>=0;
 }
 /* テストルームは見た目を試す場所なので、未獲得の色も選べるようにする。
    ただし記録は汚さない。選んだ色は部屋を出るときに元に戻す。 */
 function freeColors(){ return !!(T && !T.solo); }
-function isOwned(key){ return ownedReal(key) || (freeColors() && !!trophyOf(key)); }
+function isOwned(key){
+  const t=trophyOf(key);
+  if(!t||t.soon) return false;
+  return ownedReal(key) || freeColors();
+}
 let savedColor=null;
 function restoreColor(){
   if(savedColor===null) return;
@@ -703,6 +728,13 @@ function recordBest(n,turn){
   ST.best[n]=turn; saveStore();
   return true;                       // 更新できた＝ベスト更新
 }
+/* チャレンジのベスト＝60秒で確定できた最大本数 */
+function bestEndlessOf(){ const v=ST.bestE; return (typeof v==='number'&&v>0)?v:0; }
+function recordBestEndless(n){
+  if(!(n>0) || n<=bestEndlessOf()) return false;
+  ST.bestE=n; saveStore();
+  return true;
+}
 /* スピードのベスト＝そのお題本数を解読できた最短時間（ミリ秒） */
 function bestTimeOf(n){ const v=ST.bestT[n]; return (typeof v==='number'&&v>0)?v:0; }
 function recordBestTime(n,ms){
@@ -764,7 +796,7 @@ function checkAchievements(){
   /* 1本ごとの判定から見るもの。
      スピードは1本ずつその場で判定されるので、ターン番号ではなく
      判定ごとの通し番号で数える（同じターンに2本続けても取りこぼさない）。 */
-  const mine=(V.results&&V.results.find(r=>r.id===V.me)) || (V.speed?V.last:null);
+  const mine=(V.results&&V.results.find(r=>r.id===V.me)) || ((V.speed||V.endless)?V.last:null);
   if(mine){
     const key=(mine.seq!=null) ? 'q:'+sessionId+':'+V.round+':'+mine.seq
                                : sessionId+':'+V.round+':'+V.turn;
@@ -790,12 +822,16 @@ function renderOptions(){
   const cur=myColor();
   $('optColors').innerHTML=TROPHIES.map(t=>{
     const on=isOwned(t.color);
+    const got=t.soon && (t.id===null || ST.unlocked.indexOf(t.id)>=0);
     const c=colorOf(t), sel=on&&ST.color===t.color;
-    return '<button class="tro'+(on?'':' lock')+(sel?' sel':'')+'" data-c="'+t.color+'"'+(on?'':' disabled')+'>'+
-      '<span class="sw" style="background:'+cssOf(c)+';color:'+solidOf(c)+'"></span>'+
+    const sw = t.soon
+      ? '<span class="sw" style="background:repeating-linear-gradient(45deg,#6b7590,#6b7590 4px,#4a5470 4px,#4a5470 8px)"></span>'
+      : '<span class="sw" style="background:'+cssOf(c)+';color:'+solidOf(c)+'"></span>';
+    return '<button class="tro'+(on?'':' lock')+(sel?' sel':'')+'" data-c="'+t.color+'" disabled'.replace(' disabled',on?'':' disabled')+'>'+
+      sw+
       '<span class="tn">'+t.name+'</span>'+
-      '<span class="td">'+t.how+'</span>'+
-      (sel?'<span class="tc">使用中</span>':'')+'</button>';
+      '<span class="td">'+t.how+(t.soon?'（色は準備中）':'')+'</span>'+
+      (sel?'<span class="tc">使用中</span>':(got?'<span class="tc">達成</span>':''))+'</button>';
   }).join('');
   const all=TROPHIES.length-1;
   const have=TROPHIES.filter(t=>t.id&&ST.unlocked.indexOf(t.id)>=0).length;
@@ -1053,7 +1089,7 @@ function readName(){
    親機：ゲームの状態
    ============================================================ */
 function initState(){
-  G={ phase:'lobby', speed:false, circle:false, speedLines:3, startAt:0, prog:{}, winner:null,
+  G={ phase:'lobby', speed:false, circle:false, endless:false, speedLines:3, startAt:0, prog:{}, winner:null,
       t0:0, ms:0, last:{}, players:[], order:[], round:0, turn:0,
       parentId:null, childIds:[], lineCount:0,
       target:[], confirmed:[], confirmedBy:[],
@@ -1127,8 +1163,9 @@ function reply(id,msg){ if(id===myId) toast(msg); else send(conns.get(id),{t:'er
 
 function hostMode(id,mode){
   if(!G||G.phase!=='lobby'||id!=='HOST') return;
-  G.speed = mode==='speed';
-  G.circle= mode==='circle';
+  G.speed  = mode==='speed';
+  G.circle = mode==='circle';
+  G.endless= mode==='endless';
   broadcast();
 }
 function hostLines(id,n){
@@ -1148,7 +1185,9 @@ function hostStart(id){
 }
 function startRound(){
   G.round++;
-  if(G.round>G.order.length){ G.phase='gameEnd'; broadcast(); return; }
+  const rounds = G.endless ? 1 : G.order.length;   // チャレンジは60秒の1本勝負
+  if(G.round>rounds){ G.phase='gameEnd'; broadcast(); return; }
+  if(G.endless) return startEndlessRound();
   if(G.speed) return startSpeedRound();
   G.parentId=G.order[G.round-1];
   const par=pOf(G.parentId);
@@ -1186,6 +1225,75 @@ function startSpeedRound(){
   },COUNTDOWN);
 }
 /* スピード：描いた瞬間に、その人の進み具合に対して判定する。 */
+/* チャレンジ（対戦）。全員で同じ3つを取り合い、そろうたびに次の3つが出る。
+   60秒たったら、それぞれが取った本数で決まる。 */
+function startEndlessRound(){
+  const act=G.players.filter(p=>p.connected);
+  if(act.length<1){ G.phase='gameEnd'; broadcast(); return; }
+  G.parentId=null;
+  G.childIds=act.map(p=>p.id);
+  G.lineCount=ENDLESS_N;
+  G.target=randomTarget(ENDLESS_N,G.circle);
+  G.confirmed=G.target.map(()=>false);
+  G.confirmedBy=G.target.map(()=>null);
+  G.prog={};
+  act.forEach(p=>{ G.prog[p.id]={conf:[],n:0,done:false,ms:0,last:null}; });
+  G.winner=null; G.ms=0; G.gain={}; G.turn=0; G.results=[]; G.prevResults=[]; G.last={}; G.seqN=0;
+  G.t0=0; G.startAt=Date.now()+COUNTDOWN;
+  G.phase='countdown';
+  const token=++cdSeq; G.cd=token;
+  broadcast();
+  setTimeout(()=>{
+    if(!G||G.phase!=='countdown'||G.cd!==token) return;
+    G.phase='childDraw'; G.t0=Date.now(); broadcast();
+    setTimeout(()=>{                            // 60秒で締め切る
+      if(!G||G.phase!=='childDraw'||G.cd!==token) return;
+      endlessEnd();
+    },ENDLESS_MS);
+  },COUNTDOWN);
+}
+function endlessEnd(){
+  G.ms=ENDLESS_MS;
+  let top=0;
+  G.winner=null;
+  for(const id of G.childIds){
+    const pr=G.prog[id];
+    if(pr&&pr.n>top){ top=pr.n; G.winner=id; }
+  }
+  G.phase='roundClear';
+  broadcast();
+}
+function endlessJudge(id,l){
+  const pr=G.prog[id];
+  if(!pr||G.phase!=='childDraw') return;
+  let best=-1, rate=0;
+  for(let i=0;i<G.target.length;i++){
+    const r=matchRate(l,G.target[i]);
+    if(r>rate){ rate=r; best=i; }
+  }
+  let got=false;
+  if(best>=0 && rate>=RATE_OK && !G.confirmed[best]){
+    G.confirmed[best]=true;
+    const p=pOf(id);
+    G.confirmedBy[best]=p?p.name:'';
+    pr.n++; got=true;
+    if(p){ p.score+=1; G.gain[id]=(G.gain[id]||0)+1; }
+  }
+  G.seqN=(G.seqN||0)+1;
+  pr.last={line:l,red:redParts(l,G.target),rate:Math.round(rate*1000)/10,got,idx:best,
+    seq:G.seqN, id:id, fit: best>=0?fitOf(l,G.target[best]):''};
+  G.turn++;
+  if(G.confirmed.every(Boolean)){              // そろったら次の3つ
+    const t=randomTarget(ENDLESS_N,G.circle);
+    if(t.length===ENDLESS_N){
+      G.target=t;
+      G.confirmed=t.map(()=>false);
+      G.confirmedBy=t.map(()=>null);
+      for(const k of G.childIds){ const q=G.prog[k]; if(q) q.last=null; }
+    }
+  }
+  broadcast();
+}
 function speedJudge(id,l){
   const pr=G.prog[id];
   if(!pr||pr.done) return;
@@ -1234,6 +1342,7 @@ function hostDraw(id,line){
   if(G.phase!=='childDraw'||G.childIds.indexOf(id)<0) return;
   const sh=asShape(line||{},G.circle);
   if(!validLine(sh)){ reply(id,G.circle?'円が小さすぎます':'始点と終点が近すぎます'); return; }
+  if(G.endless) return endlessJudge(id,cleanLine(sh));
   if(G.speed) return speedJudge(id,cleanLine(sh));
   if(G.subs.has(id)) return;                 // 提出は1ターン1回
   G.subs.set(id,{line:cleanLine(sh), n:++G.subN});
@@ -1307,15 +1416,15 @@ function viewFor(id){
   const isPar = id===G.parentId;
   const reveal = (G.phase==='roundClear'||G.phase==='gameEnd');
   const sub=G.subs.get(id);
-  const pr = G.speed ? (G.prog[id]||{conf:[],n:0,done:false,ms:0,last:null}) : null;
+  const pr = (G.speed||G.endless) ? (G.prog[id]||{conf:[],n:0,done:false,ms:0,last:null}) : null;
   return {
     phase:G.phase, code:roomCode, me:id, hostIsMe:(id==='HOST'),
-    round:G.round, rounds:G.order.length, turn:G.turn,
+    round:G.round, rounds:(G.endless?1:G.order.length), turn:G.turn,
     parentId:G.parentId, parentName:G.parentId?nameOf(G.parentId):'',
     nextParent: G.order[G.round] ? nameOf(G.order[G.round]) : '',
     lineCount:G.lineCount,
     players:G.players.map(p=>{
-      const q=G.speed?(G.prog[p.id]||null):null;
+      const q=(G.speed||G.endless)?(G.prog[p.id]||null):null;
       return {
         id:p.id,name:p.name,score:p.score,connected:p.connected,
         parent:p.id===G.parentId, child:G.childIds.indexOf(p.id)>=0,
@@ -1327,12 +1436,13 @@ function viewFor(id){
       : G.confirmed.map((c,i)=>c?{...G.target[i],by:nameOf(G.confirmedBy[i])}:null),
     results:G.results, prev:G.prevResults,
     myLine: sub?sub.line:null,
-    target: G.speed ? (reveal?G.target:null) : ((isPar||reveal)?G.target:null),
-    speed:!!G.speed, circle:!!G.circle, speedLines:G.speedLines,
+    target: (G.speed||G.endless) ? (reveal?G.target:null) : ((isPar||reveal)?G.target:null),
+    speed:!!G.speed, circle:!!G.circle, endless:!!G.endless, speedLines:G.speedLines,
+    limit:ENDLESS_MS, total:(G.prog[id]&&G.prog[id].n)||0,
     t0:G.t0, startAt:G.startAt, ms:G.ms, now:Date.now(),
     winner: G.winner?nameOf(G.winner):'', winnerIsMe: G.winner===id,
     myProg: pr?pr.n:0, done: pr?pr.done:false, myMs: pr?pr.ms:0,
-    last: G.speed ? (pr.last||null) : null
+    last: pr ? (pr.last||null) : null
   };
 }
 function broadcast(){
@@ -1391,7 +1501,8 @@ function openLocal(solo){
   peer=null; hostConn=null; conns=new Map(); isHost=false; G=null;
   net('');
   sessionId++;
-  T={ n:3, solo:!!solo, speed:false, circle:false, t0:0, ms:0, last:null, streak:0,
+  T={ n:3, solo:!!solo, speed:false, circle:false, endless:false, total:0,
+      t0:0, ms:0, last:null, streak:0,
       allHigh:true, noLow:true, desc:true, lastGot:Infinity, noGhost:true,
       target:[], confirmed:[], turn:0, results:[], prev:[],
       myLine:null, score:0, gain:0, phase:solo?'soloPick':'parentDraw', peek:!solo };
@@ -1415,6 +1526,7 @@ function soloPick(){
 }
 function soloStart(){
   soloRun++;                                   // ソロは1問ごとに別の記録にする
+  if(T.endless) T.n=ENDLESS_N;                 // チャレンジは3つずつ出す
   const t=randomTarget(T.n,T.circle);
   if(t.length!==T.n){ toast('お題をつくれませんでした。もう一度どうぞ'); return; }
   T.newBest=false; T.best=0;
@@ -1422,7 +1534,34 @@ function soloStart(){
   T.turn=1; T.phase='childDraw'; T.myLine=null; T.results=[]; T.prev=[]; T.gain=0;
   T.last=null; T.ms=0; T.newBestT=false; T.t0=Date.now(); T.streak=0; T.seq=0;
   T.allHigh=true; T.noLow=true; T.desc=true; T.lastGot=Infinity; T.noGhost=true;
+  T.total=0;
   clearLocal();
+  testRender();
+}
+/* チャレンジ：3つそろうたびに、新しい3つを出し直す */
+function endlessRefill(){
+  const t=randomTarget(ENDLESS_N,T.circle);
+  if(t.length!==ENDLESS_N) return;
+  T.target=t; T.confirmed=t.map(()=>false);
+  T.prev=[]; T.last=null;
+}
+function endlessLeft(){ return Math.max(0, ENDLESS_MS-(Date.now()-T.t0)); }
+/* 時間切れ。ここまでに確定した本数が結果になる。 */
+function endlessFinish(){
+  if(!T||!T.endless||T.phase!=='childDraw') return;
+  T.ms=ENDLESS_MS;
+  T.phase='roundClear';
+  if(T.solo){
+    T.newBestE=recordBestEndless(T.total);
+    T.bestE=bestEndlessOf();
+    const n=T.total;
+    if(n>=5)  unlock('honoo',pendingGot);
+    if(n>=10) unlock('kohaku',pendingGot);
+    if(n>=15) unlock('rosoku',pendingGot);
+    if(n>=20) unlock('bara',pendingGot);
+    if(n>=30) unlock('e30',pendingGot);
+    saveStore();
+  }
   testRender();
 }
 function clearLocal(){
@@ -1432,7 +1571,8 @@ function clearLocal(){
 function testView(){
   const setup = T.phase==='parentDraw';
   return {
-    test:true, solo:!!T.solo, circle:!!T.circle,
+    test:true, solo:!!T.solo, circle:!!T.circle, endless:!!T.endless, total:T.total||0,
+    limit:ENDLESS_MS,
     phase:T.phase, code:T.solo?'SOLO':TEST_CODE, me:'ME', hostIsMe:true,
     round:1, rounds:1, turn:T.turn,
     parentId: setup?'ME':'TARGET', parentName:'テスト', nextParent:'',
@@ -1443,7 +1583,8 @@ function testView(){
     results:T.results, prev:T.prev, myLine:T.myLine,
     newBest:!!T.newBest, best:T.best||0,
     speed:!!T.speed, t0:T.t0, ms:T.ms, now:Date.now(),
-    last:T.speed?T.last:null, newBestT:!!T.newBestT, bestT:T.bestT||0,
+    last:(T.speed||T.endless)?T.last:null, newBestT:!!T.newBestT, bestT:T.bestT||0,
+    newBestE:!!T.newBestE, bestE:T.bestE||0,
     target:(setup||T.peek||T.phase==='roundClear') ? T.target : null
   };
 }
@@ -1493,6 +1634,15 @@ function testDraw(line){
     fit: best>=0?fitOf(l,T.target[best]):'',
     all:all.map(r=>Math.round(r*1000)/10) };
   const done=T.confirmed.every(Boolean);
+  if(T.endless){
+    if(got) T.total++;
+    T.last=res; T.myLine=null; T.results=[res];
+    T.turn++;
+    if(done) endlessRefill();                  // そろったら次の3つへ
+    if(endlessLeft()<=0) return endlessFinish();
+    testRender();
+    return;
+  }
   if(T.speed){
     /* スピードは結果画面をはさまず、盤の上に直前の1本を残したまま次を引ける */
     T.last=res; T.myLine=null; T.results=[res];
@@ -1545,15 +1695,20 @@ function renderSoloPick(){
       '" style="flex:1;padding:8px 0"><span class="cn">'+n+'</span>'+
       '<span class="cb">'+lab+'</span></button>';
   }).join('');
-  const b=T.speed?bestTimeOf(T.n):bestOf(T.n);
-  $('soloBestLabel').textContent=T.n+'本のベスト'+(T.speed?'タイム':'');
+  $('soloCount').classList.toggle('hide',!!T.endless);
+  const U=T.circle?'つ':'本';
+  const b=T.endless?bestEndlessOf():(T.speed?bestTimeOf(T.n):bestOf(T.n));
+  $('soloBestLabel').textContent=T.endless?'チャレンジのベスト':(T.n+U+'のベスト'+(T.speed?'タイム':''));
   $('soloBestVal').innerHTML = b
-    ? (T.speed ? fmtTime(b) : b+'<span style="font-size:15px;font-weight:700"> ターン</span>')
+    ? (T.endless ? b+'<span style="font-size:15px;font-weight:700"> '+U+'</span>'
+      : T.speed ? fmtTime(b) : b+'<span style="font-size:15px;font-weight:700"> ターン</span>')
     : '<span style="font-size:19px;color:var(--dim)">記録なし</span>';
-  $('soloBestNote').textContent = T.speed
+  $('soloBestNote').textContent = T.endless
+    ? '60秒で何本とれるか。'+ENDLESS_N+U+'そろうたびに、新しいお題が出ます。'
+    : T.speed
     ? '線を描いた瞬間に判定します。全部そろうまでの時間を 0.01 秒まで計ります。'
     : '最短は '+T.n+' ターン。1ターンに引ける線は1本なので、これより速くは解けません。';
-  $('btnSoloGo').textContent=T.n+'本ではじめる';
+  $('btnSoloGo').textContent=T.endless?'はじめる':(T.n+U+'ではじめる');
 }
 function renderTestBar(){
   const bar=$('testBar');
@@ -1637,9 +1792,14 @@ function stroke(ctx,l,color,w,alpha,dash,cap){
  *  長さは芯そのままなので、光っても重なりの範囲を誤解させない。 */
 /* 自分の線を描く。ふつうの色のほか、光る水晶と、暗闇がのぞく亀裂に対応する。 */
 /* 引いている途中でも見た目が変わる線種かどうか */
-function isStyled(c){ return !!(c&&(c.anim||c.crack||c.beat||c.sky||c.star||c.meteor)); }
+function isStyled(c){
+  return !!(c&&(c.anim||c.crack||c.beat||c.sky||c.star||c.meteor||c.twist||c.candle||c.rose));
+}
 function inkLine(ctx,l,col,w,alpha,age){
   const A=alpha==null?1:alpha;
+  if(col&&col.twist)  return twistLine(ctx,l,w,A,col);
+  if(col&&col.candle) return candleLine(ctx,l,w,A,col);
+  if(col&&col.rose)   return roseLine(ctx,l,w,A,col);
   if(col&&col.meteor) return meteorLine(ctx,l,w,A,col);
   if(col&&col.star)  return starLine(ctx,l,w,A,col);
   if(col&&col.sky)   return skyLine(ctx,l,w,A,col,age);
@@ -1653,7 +1813,7 @@ function crystalLine(ctx,l,w,A,col){
   const path=()=>{ tracePath(ctx,l); ctx.stroke(); };
   ctx.save(); ctx.lineCap='round'; ctx.strokeStyle=st;
   if(TH().glow){
-    ctx.shadowColor='#9fe8ff';
+    ctx.shadowColor=col.glow||'#9fe8ff';
     ctx.globalCompositeOperation='lighter';
     ctx.globalAlpha=.30*A; ctx.shadowBlur=20*s; ctx.lineWidth=w+2; path();
     ctx.globalAlpha=.45*A; ctx.shadowBlur=9*s;  ctx.lineWidth=w;   path();
@@ -1847,6 +2007,162 @@ function starDot(ctx,x,y,r,A,tw){
   ctx.globalAlpha=(0.55+r*0.45)*k*A;             // 芯
   ctx.fillStyle=col;
   ctx.beginPath(); ctx.arc(x,y,sz*0.55,0,Math.PI*2); ctx.fill();
+}
+
+/* 紅白。白地のうえに赤を破線で重ねて、ねじれた縞にする。
+   破線の位置を時間で送ると、棒がまわっているように見える。 */
+function twistLine(ctx,l,w,A,col){
+  /* 紅白。2本の帯を互いに巻きつけたように描く。
+     前後を入れ替えながら重ねるので、ねじれて見える。動かない。 */
+  const g=col.grad, TAU=Math.PI*2;
+  const len=shapeLen(l)||1;
+  const turns=Math.max(2,Math.round(len/30));   // ねじれの回数
+  const N=Math.max(40,turns*14);
+  const amp=w*0.30, bw=w*0.72;
+  const off=(t,sgn)=>{
+    const p=ptOnShape(l,t), n=normalAt(l,t);
+    const o=sgn*amp*Math.sin(t*turns*TAU);
+    return {x:p.x+n.x*o, y:p.y+n.y*o};
+  };
+  const strand=(sgn,color,only)=>{
+    ctx.strokeStyle=color; ctx.lineWidth=bw;
+    let open=false;
+    for(let i=0;i<=N;i++){
+      const t=i/N;
+      const front=Math.cos(t*turns*TAU)>=0;      // どちらが手前か
+      const draw=(only==null)||(front===only);
+      if(draw){
+        const q=off(t,sgn);
+        if(!open){ ctx.beginPath(); ctx.moveTo(q.x,q.y); open=true; }
+        else ctx.lineTo(q.x,q.y);
+      }else if(open){ ctx.stroke(); open=false; }
+    }
+    if(open) ctx.stroke();
+  };
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round'; ctx.globalAlpha=A;
+  strand(+1,g[0],null);        // 白：まず全体を通す
+  strand(-1,g[1],null);        // 赤：白の上に重ねる
+  strand(+1,g[0],true);        // 白が手前になるところだけ、もう一度上へ
+  ctx.restore();
+}
+
+/* 炎の形。根元から先へ細くなる涙型を、時間で揺らす。 */
+function flamePath(ctx,x,y,fw,fh,sway){
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.bezierCurveTo(x-fw, y-fh*0.35, x-fw*0.85+sway, y-fh*0.78, x+sway*0.6, y-fh);
+  ctx.bezierCurveTo(x+fw*0.85+sway, y-fh*0.78, x+fw, y-fh*0.35, x, y);
+  ctx.closePath();
+}
+/* 蝋燭。白い蝋の線の先で、炎が揺らめいて光る。 */
+function candleLine(ctx,l,w,A,col){
+  const g=col.grad, s=(typeof ctx._s==='number'&&ctx._s>0)?ctx._s:1;
+  const tm=Date.now()/1000;
+  ctx.save(); ctx.lineCap='round';
+  /* 蝋の柱。芯を明るく、縁を少し落として丸みを出す */
+  ctx.globalAlpha=A; ctx.lineWidth=w+2; ctx.strokeStyle=g[1];
+  tracePath(ctx,l); ctx.stroke();
+  ctx.lineWidth=Math.max(1.5,w-1.2); ctx.strokeStyle=g[0];
+  tracePath(ctx,l); ctx.stroke();
+  ctx.restore();
+  /* 終点の炎 */
+  const p=ptOnShape(l,1);
+  const fl=0.82+0.18*Math.sin(tm*9.1)+0.06*Math.sin(tm*17.3);   // ゆらぎ
+  const fh=(w*5.8)*fl, fw=(w*1.95)*(1.06-0.12*fl);
+  const sway=Math.sin(tm*5.7)*w*0.5;
+  ctx.save();
+  ctx.globalAlpha=A;
+  if(TH().glow) ctx.globalCompositeOperation='lighter';
+  const sp=starSprite('#ffb340');
+  if(sp){ try{ const R=fh*1.25;
+    ctx.globalAlpha=(TH().glow?0.55:0.35)*A*fl;
+    ctx.drawImage(sp,p.x-R,p.y-R-fh*0.45,R*2,R*2);
+  }catch(e){} }
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=A;
+  flamePath(ctx,p.x,p.y,fw,fh,sway);
+  const gr=ctx.createLinearGradient(p.x,p.y,p.x,p.y-fh);
+  gr.addColorStop(0,'#ff6a00'); gr.addColorStop(0.45,'#ffb140'); gr.addColorStop(1,'#fff0b8');
+  ctx.fillStyle=gr; ctx.fill();
+  flamePath(ctx,p.x,p.y-fh*0.08,fw*0.46,fh*0.52,sway*0.6);      // 芯
+  ctx.fillStyle='#fff6d8'; ctx.globalAlpha=0.9*A; ctx.fill();
+  ctx.restore();
+}
+
+/* 薔薇。茨の線の先に薔薇が咲き、そこから花びらが散る。 */
+function roseLine(ctx,l,w,A,col){
+  const g=col.grad, rnd=starRnd(l), TAU=Math.PI*2;
+  ctx.save(); ctx.lineCap='round'; ctx.globalAlpha=A;
+  ctx.lineWidth=w; ctx.strokeStyle=g[1];
+  tracePath(ctx,l); ctx.stroke();
+  ctx.lineWidth=Math.max(1.2,w-2.2); ctx.strokeStyle=g[0];
+  tracePath(ctx,l); ctx.stroke();
+  /* 棘。左右に交互に生やす */
+  const len=shapeLen(l), n=Math.max(3,Math.round(len/26));
+  ctx.fillStyle=g[0];
+  for(let i=1;i<n;i++){
+    const t=i/n, p=ptOnShape(l,t), u=normalAt(l,t);
+    const side=(i%2)?1:-1, h=w*0.9*(0.75+rnd(i)*0.5);
+    const dx=-u.y*side, dy=u.x*side;              // 図形に沿う向き
+    ctx.beginPath();
+    ctx.moveTo(p.x+u.x*w*0.35*side, p.y+u.y*w*0.35*side);
+    ctx.lineTo(p.x+u.x*h*side*2.0+dx*h*0.5, p.y+u.y*h*side*2.0+dy*h*0.5);
+    ctx.lineTo(p.x-dx*w*0.45+u.x*w*0.35*side, p.y-dy*w*0.45+u.y*w*0.35*side);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  /* 終点の薔薇。上から見た花を、外から内へ輪を重ねて組む。
+     輪ごとに小さく・回しながら置くと、中心の巻きを軸に花弁が渦を描く。 */
+  const p=ptOnShape(l,1), R=w*3.6, TAU2=Math.PI*2;
+  ctx.save(); ctx.globalAlpha=A;
+  ctx.translate(p.x,p.y);
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  const rot=-0.35+rnd(9)*0.7;
+
+  /* 花弁1枚。基部は一点に収れんし、前縁はえぐれてから開いて鋭い肩をつくる。
+     外縁は浅くくびれてふたたび張り、後縁は内へえぐれて基部へ戻る。 */
+  const petalPath=(q)=>{
+    ctx.beginPath();
+    ctx.moveTo(...q(0, 0));
+    ctx.bezierCurveTo(...q(0.28,-0.06), ...q(0.55,-0.42), ...q(0.78,-0.72));
+    ctx.bezierCurveTo(...q(0.95,-0.86), ...q(1.12,-0.60), ...q(1.12,-0.26));
+    ctx.bezierCurveTo(...q(1.06,-0.04), ...q(0.99, 0.10), ...q(0.96, 0.26));
+    ctx.bezierCurveTo(...q(1.00, 0.50), ...q(0.88, 0.74), ...q(0.66, 0.86));
+    ctx.bezierCurveTo(...q(0.40, 0.40), ...q(0.15, 0.10), ...q(0, 0));
+    ctx.closePath();
+  };
+  /* 花弁のすき間から地の色が見えないよう、下に赤を敷く */
+  ctx.beginPath(); ctx.arc(0,0,R*0.42,0,TAU2);
+  ctx.fillStyle='#b00a24'; ctx.fill();
+  ctx.strokeStyle='#fff2f4'; ctx.lineWidth=Math.max(0.7,R*0.05);
+  const rings=[
+    {n:5, rIn:0.30, rOut:1.00, rot:0.00, c:'#a8071f', hw:0.66},
+    {n:5, rIn:0.18, rOut:0.72, rot:0.72, c:'#c00a28', hw:0.66},
+    {n:4, rIn:0.10, rOut:0.48, rot:1.45, c:'#d81030', hw:0.70},
+    {n:3, rIn:0.04, rOut:0.28, rot:2.30, c:'#e8203c', hw:0.78}
+  ];
+  for(const rg of rings){
+    ctx.fillStyle=rg.c;
+    const slot=TAU2/rg.n;
+    for(let i=0;i<rg.n;i++){
+      const mid=rg.rot+i*slot+rot, half=slot*rg.hw;
+      petalPath((u,v)=>{
+        const r=(rg.rIn+u*(rg.rOut-rg.rIn))*R, a=mid+v*half;
+        return [Math.cos(a)*r, Math.sin(a)*r];
+      });
+      ctx.fill(); ctx.stroke();
+    }
+  }
+  /* 中心の巻き */
+  ctx.lineWidth=Math.max(0.6,R*0.04);
+  ctx.beginPath();
+  for(let k=0;k<=50;k++){
+    const th=k/50*TAU2*1.4+rot+2.3, rr=R*0.115*(1-k/50*0.72);
+    const x=Math.cos(th)*rr, y=Math.sin(th)*rr;
+    k?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 /* 流星。始点から終点に向かって、頭と尾が流れていく。
@@ -2167,7 +2483,7 @@ function paint(cv,L){
     inkLine(ctx,l,col,w,a);
     /* 亀裂は先が細くとがるので端の丸は打たない。
        円は2点が円の外（正方形の角）にあるので、打つと紛らわしい。 */
-    if(!(col&&(col.crack||col.beat)) && !isCircle(l)){
+    if(!(col&&(col.crack||col.beat||col.rose||col.candle)) && !isCircle(l)){
       let c1=sc, c2=sc;
       if(col&&col.sky){ const t=skyAge(l); c1=skyAt(col,skyPhase(t,0)); c2=skyAt(col,skyPhase(t,1)); }
       dot(ctx,{x:l.x1,y:l.y1},c1,rr,a); dot(ctx,{x:l.x2,y:l.y2},c2,rr,a);
@@ -2235,7 +2551,7 @@ function commit(a,b,fromTap){
   if(V.phase==='childDraw') local.lines=[l];
   else local.lines.push(l);
   local.anchor=null; hint(''); sfx('line'); petalStart();
-  if(V&&V.speed&&V.phase==='childDraw'&&V.me!==V.parentId) speedSend(l);
+  if(V&&(V.speed||V.endless)&&V.phase==='childDraw'&&V.me!==V.parentId) speedSend(l);
   return true;
 }
 /* スピード：決定ボタンを押さずに、引いた瞬間そのまま判定へ回す */
@@ -2331,7 +2647,8 @@ function pips(el,opt){
    ============================================================ */
 /* 藤・桜・紅葉の線からは、同じ色の花弁が舞い散る。
    盤そのものを毎フレーム描き直すと重いので、上に重ねた透明なキャンバスだけを動かす。 */
-const PETAL_IDS=['solo5','flaw','momiji','tsubaki','himawari'];
+const PETAL_IDS=['solo5','flaw','momiji','tsubaki','himawari','bara'];
+const PETAL_END=['bara'];      // 終点からだけ散らす
 const PETAL_RATE=17;      // 220px の線で毎秒およそ17粒
 const PETAL_MAX=4;        // 1コマで出す上限（重い端末で詰まらせない）
 const SPARK_IDS=['acc90','acc95','acc99','crystal'];
@@ -2340,13 +2657,26 @@ let petals=[], petalRAF=null, petalPrev=0, petalBoard=0;
 function fxTrophy(){ return isOwned(ST.color) ? trophyOf(ST.color) : null; }
 function petalPaint(){
   const t=fxTrophy();
-  return (t&&PETAL_IDS.indexOf(t.id)>=0) ? colorOf(t) : null;
+  if(!t||PETAL_IDS.indexOf(t.id)<0) return null;
+  const c=colorOf(t);
+  return (c&&c.petal) ? c.petal : c;
+}
+function petalFromEnd(){ const t=fxTrophy(); return !!(t&&PETAL_END.indexOf(t.id)>=0); }
+/* 花弁の量。色によって控えめにできる */
+function petalRateOf(){
+  const t=fxTrophy();
+  if(!t) return PETAL_RATE;
+  const c=colorOf(t);
+  return PETAL_RATE*((c&&c.petalRate)||1);
 }
 function sparkPaint(){
   const t=fxTrophy();
   return (t&&SPARK_IDS.indexOf(t.id)>=0) ? colorOf(t) : null;
 }
-function animInk(){ const c=myColor(); return !!(c&&(c.anim||c.sky||c.star||c.meteor)); }
+function animInk(){
+  const c=myColor();
+  return !!(c&&(c.anim||c.sky||c.star||c.meteor||c.candle||c.rose));
+}
 /* いま盤を描き直し続ける必要があるか。
    指を離していても進むよう、線を引いているかどうかとは切り離して判定する。
    夕焼けは紺まで行けば止まるので、そこからは描き直さない。 */
@@ -2355,7 +2685,7 @@ function revealNeeds(){
   if(!revealCell||!V||V.phase!=='reveal') return false;
   const c=myColor();
   if(!c) return false;
-  if(c.anim||c.star||c.meteor) return true;
+  if(c.anim||c.star||c.meteor||c.candle||c.rose) return true;
   if(!c.sky) return false;
   const l=revealCell.lay.lines&&revealCell.lay.lines[0];
   return !!l && skyAge(l)<skyTotal(c)+SKY_LAG;
@@ -2365,7 +2695,7 @@ function needRepaint(){
   if(V.phase!=='childDraw'&&V.phase!=='countdown'&&V.phase!=='parentDraw') return false;
   const c=myColor();
   if(!c) return false;
-  if(c.anim||c.star||c.meteor) return true;   // 水晶・星空・流星は止まらない
+  if(c.anim||c.star||c.meteor||c.candle||c.rose) return true;   // 動き続ける線種
   if(!c.sky) return false;
   const end=skyTotal(c)+SKY_LAG;
   const src=petalSources();
@@ -2382,7 +2712,7 @@ function petalSources(){
   if(V.phase!=='childDraw'&&V.phase!=='countdown') return [];
   if(V.myLine) return [V.myLine];
   if(local.lines.length) return local.lines;
-  if(V.speed&&V.last&&!local.anchor) return [V.last.line];
+  if((V.speed||V.endless)&&V.last&&!local.anchor) return [V.last.line];
   return [];
 }
 function spawnSpark(l,col){
@@ -2398,7 +2728,8 @@ function spawnSpark(l,col){
     c:pickColor(col), sw:1, ph:0 });
 }
 function spawnPetal(l,col){
-  const t=Math.random(), sw=Math.random()<.5?-1:1, p=ptOnShape(l,t);
+  const end=petalFromEnd();
+  const t=end?1:Math.random(), sw=Math.random()<.5?-1:1, p=ptOnShape(l,t);
   petals.push({
     x:p.x+(Math.random()-.5)*6,
     y:p.y+(Math.random()-.5)*6,
@@ -2423,7 +2754,7 @@ function petalTick(now){
         if(Math.random()<n-k) k++;
         for(let j=0;j<k&&j<PETAL_MAX;j++) fn(l,col);
       };
-      if(pc) emit(PETAL_RATE,spawnPetal,pc);
+      if(pc) emit(petalRateOf(),spawnPetal,pc);
       if(sc) emit(SPARK_RATE,spawnSpark,sc);
     }
   }
@@ -2494,11 +2825,13 @@ function updatePips(){
 
 /* スピードの大きな表示。時間は時計から、一致率は直前の判定から。 */
 function updateHud(){
-  const on = !!(V&&V.speed&&(V.phase==='childDraw'||V.phase==='countdown'));
+  const on = !!(V&&(V.speed||V.endless)&&(V.phase==='childDraw'||V.phase==='countdown'));
   $('speedHud').classList.toggle('hide',!on);
   $('drawHead').classList.toggle('hide',on);      // 見出しの代わりに数字を主役にする
   if(!on) return;
   paintTime();
+  $('shCountBox').classList.toggle('hide',!V.endless);
+  if(V.endless) $('shCount').innerHTML=(V.total||0)+'<span class="shu">本</span>';
   const box=$('shRate'), panel=box.parentElement;
   panel.style.removeProperty('--lc');
   if(V.phase==='countdown'){
@@ -2521,6 +2854,13 @@ function updateHud(){
 }
 function paintTime(){
   const t=$('shTime');
+  if(V&&V.endless&&V.phase==='childDraw'){
+    const left=Math.max(0,(V.limit||ENDLESS_MS)-elapsedMs())/1000;
+    t.className='shv'+(left<=10?' on':'');
+    t.parentElement.style.setProperty('--lc','var(--signal)');
+    t.innerHTML=left.toFixed(1)+'<span class="shu">秒</span>';
+    return;
+  }
   if(V&&V.phase==='countdown'){
     const left=Math.max(0,(V.startAt-(Date.now()-clockSkew))/1000);
     t.className='shv on'; t.parentElement.style.setProperty('--lc','var(--gold)');
@@ -2538,6 +2878,7 @@ function paintTime(){
 let clockSkew=0, clockId=null;
 function elapsedMs(){ return (V&&V.t0) ? (Date.now()-clockSkew-V.t0) : 0; }
 function phaseLabel(){
+  if(V.endless) return V.solo?'チャレンジ':'チャレンジ R'+V.round;
   if(V.speed&&(V.phase==='childDraw'||V.phase==='countdown'))
     return V.solo ? 'スピード・'+V.lineCount+unitOf(V)
          : V.test ? 'スピード・テスト'
@@ -2549,8 +2890,9 @@ function phaseLabel(){
 function startClock(){
   if(clockId) return;
   clockId=setInterval(()=>{
-    if(!V||!V.speed||(V.phase!=='childDraw'&&V.phase!=='countdown')){ stopClock(); return; }
+    if(!V||(!V.speed&&!V.endless)||(V.phase!=='childDraw'&&V.phase!=='countdown')){ stopClock(); return; }
     paintTime();
+    if(V.endless&&T&&T.endless&&endlessLeft()<=0) endlessFinish();   // 時間切れ
   },50);
 }
 function stopClock(){ if(clockId){ clearInterval(clockId); clockId=null; } }
@@ -2566,7 +2908,7 @@ function render(){
   $('barCode').textContent=V.code;
   clockSkew = (typeof V.now==='number') ? Date.now()-V.now : 0;
   $('barPhase').textContent = phaseLabel();
-  if(V.speed&&(V.phase==='childDraw'||V.phase==='countdown')) startClock(); else stopClock();
+  if((V.speed||V.endless)&&(V.phase==='childDraw'||V.phase==='countdown')) startClock(); else stopClock();
   phaseSound();
   recRound();
   checkAchievements();
@@ -2602,12 +2944,20 @@ function renderLobby(){
     : '順番に親と子を交代します。1本ずつ描いて、全員そろってから答え合わせ。';
 }
 /* モード選択のボタン列。lock のときは表示だけで押せない。 */
-const MODES=[['normal','ノーマル'],['speed','スピード'],['circle','サークル']];
-function modeOf(o){ return o&&o.speed?'speed':(o&&o.circle?'circle':'normal'); }
+const MODES=[['normal','ノーマル'],['circle','サークル'],['speed','スピード'],['endless','チャレンジ']];
+function modeOf(o){
+  if(!o) return 'normal';
+  if(o.endless) return 'endless';
+  if(o.speed) return 'speed';
+  if(o.circle) return 'circle';
+  return 'normal';
+}
+const ENDLESS_MS=60000;      // 制限時間
+const ENDLESS_N=3;           // 一度に出るお題の数
 function modeButtons(el,cur,lock){
   el.innerHTML=MODES.map(([k,t])=>
     '<button class="'+(k===cur?'primary':'ghost')+'" data-m="'+k+'"'+
-    (lock?' disabled':'')+' style="flex:1;padding:9px 0;font-size:13px">'+t+'</button>').join('');
+    (lock?' disabled':'')+' style="flex:1;padding:9px 0;font-size:12px">'+t+'</button>').join('');
 }
 
 function renderDraw(){
@@ -2625,7 +2975,11 @@ function renderDraw(){
     }
   }else{
     const left=V.confirmed.filter(c=>!c).length;
-    if(V.speed){
+    if(V.endless){
+      $('drawTitle').textContent='チャレンジ';
+      $('drawSub').textContent='60秒で何本とれるか。'+ENDLESS_N+
+        (V.circle?'つ':'本')+'そろうたびに新しいお題が出ます。';
+    }else if(V.speed){
       $('drawTitle').textContent='いそいで解読';
       $('drawSub').textContent='残り'+left+'本。描いた瞬間に判定します。';
     }else if(iAmParent){
@@ -2643,7 +2997,8 @@ function renderDraw(){
   paintDraw();
   petalStart();
   refreshDrawUI();
-  playerList($('drawList'),{submit:V.phase==='childDraw'&&!V.speed, prog:!!V.speed&&!V.solo});
+  playerList($('drawList'),{submit:V.phase==='childDraw'&&!V.speed&&!V.endless,
+    prog:(!!V.speed||!!V.endless)&&!V.solo});
 }
 /* 前のターンの結果を重ねて表示しているか */
 function ghostOn(){
@@ -2667,7 +3022,7 @@ function paintDraw(){
     else{
       if(V.test&&V.target) L.target=V.target;   // テストルームでは答え合わせしながら引ける
       L.ink=myColor(); L.previewColor=myColor();
-      if(V.speed&&V.last&&!local.lines.length&&!local.anchor){
+      if((V.speed||V.endless)&&V.last&&!local.lines.length&&!local.anchor){
         L.trace=V.last.line;                 // 直前の1本は薄い軌跡として残し
         L.red=V.last.red;                    // 重なった部分だけ発光させる
       }
@@ -2695,8 +3050,8 @@ function refreshDrawUI(){
         ? '直線'+V.lineCount+'本で図形を描いてください。あと '+left+' 本。'
         : '直線'+V.lineCount+'本すべて引けました。子には見えません。';
     }
-  }else if(V.speed){
-    /* スピードは決定ボタンを使わない。引いた瞬間に判定されるので、直前の結果だけ出す。 */
+  }else if(V.speed||V.endless){
+    /* その場で判定するので決定ボタンは使わない。直前の結果だけ出す。 */
     bS.classList.add('hide');
     bU.classList.toggle('hide',iAmParent||V.phase==='countdown'||!!V.done);
     bU.disabled=!local.lines.length&&!local.anchor;
@@ -2778,9 +3133,15 @@ function buildCells(grid,list){
 
 function renderClear(){
   show('sc-clear');
-  const badge = V.solo ? (V.speed?V.newBestT:V.newBest) : (V.speed&&V.winnerIsMe);
+  $('clearTitle').textContent=V.endless?'FINISH':'CLEAR';
+  const badge = V.solo ? (V.endless?V.newBestE:(V.speed?V.newBestT:V.newBest))
+                       : (V.speed&&V.winnerIsMe);
   $('bestBadge').classList.toggle('hide',!badge);
   const U=unitOf(V), NU=V.lineCount+U;
+  if(V.endless){
+    $('clearSub').textContent='60秒で '+(V.total||0)+U+' 確定しました。'+
+      (V.newBestE?'自己ベスト更新です。':(V.bestE?'ベストは '+V.bestE+U+'。':''));
+  }else
   $('clearSub').textContent = (V.speed&&V.solo)
     ? 'お題の'+NU+'を '+fmtTime(V.ms)+'で解読。'+
       (V.newBestT?'ベストタイム更新です。':(V.bestT?'ベストは '+fmtTime(V.bestT)+'。':''))
@@ -3065,7 +3426,7 @@ let soundKey=null, lastSoundKey=null;
 /* 画面が切り替わった瞬間だけ鳴らす（再描画で二重に鳴らさない） */
 function phaseSound(){
   if(!V) return;
-  if(V.speed&&V.last){                       // スピードは判定のたびに鳴らす
+  if((V.speed||V.endless)&&V.last){          // その場判定のモードは1本ごとに鳴らす
     const l=V.last.line, lk=[l.x1,l.y1,l.x2,l.y2,V.last.rate].join(',');
     if(lk!==lastSoundKey){ lastSoundKey=lk; sfx(V.last.got?'lock':'reveal'); }
   }
@@ -3160,14 +3521,18 @@ $('btnTitleClear').onclick=goTitle;
 $('testMode').addEventListener('click',e=>{
   const b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(!b||!T||!b.dataset.m||T.phase!=='parentDraw') return;
-  T.speed=b.dataset.m==='speed'; T.circle=b.dataset.m==='circle';
+  const m=b.dataset.m;
+  T.speed=m==='speed'; T.circle=m==='circle'; T.endless=m==='endless';
+  if(T.endless) T.n=ENDLESS_N;
   local.lines=[]; local.anchor=null; local.preview=null;   // 形が変わるので描きかけは消す
   sfx('point'); testRender();
 });
 $('soloMode').addEventListener('click',e=>{
   const b=e.target&&e.target.closest?e.target.closest('button'):null;
   if(!b||!T||!b.dataset.m) return;
-  T.speed=b.dataset.m==='speed'; T.circle=b.dataset.m==='circle';
+  const m=b.dataset.m;
+  T.speed=m==='speed'; T.circle=m==='circle'; T.endless=m==='endless';
+  if(T.endless) T.n=ENDLESS_N;
   sfx('point'); testRender();
 });
 $('lobbyLines').addEventListener('click',e=>{
