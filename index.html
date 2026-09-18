@@ -166,7 +166,12 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
 #speedHud .sh{flex:1 1 0;min-width:0;overflow:hidden;
   background:var(--panel);border:1px solid var(--rule);border-radius:12px;
   padding:7px 10px 9px;text-align:center;--lc:var(--chalk)}
-#speedHud .shl{font-size:11px;font-weight:700;color:var(--dim);letter-spacing:.10em}
+#speedHud .shl{font-size:11px;font-weight:700;color:var(--dim);letter-spacing:.10em;
+  white-space:nowrap;overflow:hidden}
+/* 手がかり欄。中身が無くても高さを保つので、出入りで画面が動かない */
+#speedHud .shf{height:15px;line-height:15px;margin-top:2px;
+  font-size:10.5px;font-weight:800;color:var(--gold);letter-spacing:.04em;
+  white-space:nowrap;overflow:hidden}
 #speedHud .shv{font-size:35px;font-weight:800;line-height:1.06;color:var(--chalk);
   font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;white-space:nowrap;
   font-variant-numeric:tabular-nums}
@@ -355,14 +360,17 @@ dialog li{margin-bottom:7px}
         <div class="sh">
           <div class="shl">タイム</div>
           <div class="shv" id="shTime">0.00</div>
+          <div class="shf"></div>
         </div>
         <div class="sh hide" id="shCountBox">
           <div class="shl">本数</div>
           <div class="shv" id="shCount">0</div>
+          <div class="shf"></div>
         </div>
         <div class="sh">
           <div class="shl" id="shRateLabel">一致率</div>
           <div class="shv" id="shRate">–</div>
+          <div class="shf" id="shFit"></div>
         </div>
       </div>
       <div class="pips" id="drawPips"></div>
@@ -3016,6 +3024,10 @@ function updatePips(){
 }
 
 /* スピードの大きな表示。時間は時計から、一致率は直前の判定から。 */
+function setFit(txt){
+  const e=$('shFit');
+  if(e&&e.textContent!==txt) e.textContent=txt;
+}
 function updateHud(){
   const on = !!(V&&(V.speed||V.chal||V.surv)&&(V.phase==='childDraw'||V.phase==='countdown'));
   $('speedHud').classList.toggle('hide',!on);
@@ -3032,16 +3044,19 @@ function updateHud(){
   panel.style.removeProperty('--lc');
   if(V.phase==='countdown'){
     $('shRateLabel').textContent='まもなく';
+    setFit('');
     box.className='shv'; box.innerHTML='<span class="shu">よーいドン</span>';
     return;
   }
   if(V.me===V.parentId){                          // ノーマル型の親は解けないので残り本数
     $('shRateLabel').textContent='のこり';
+    setFit('');
     box.className='shv';
-    box.innerHTML=V.confirmed.filter(c=>!c).length+'<span class="shu">本</span>';
+    box.innerHTML=V.confirmed.filter(c=>!c).length+'<span class="shu">'+unitOf(V)+'</span>';
     return;
   }
-  $('shRateLabel').textContent = (V.last&&V.last.fit) ? '一致率（線が'+V.last.fit+'）' : '一致率';
+  $('shRateLabel').textContent='一致率';
+  setFit((V.last&&V.last.fit) ? '線が'+V.last.fit : '');
   if(!V.last){ box.className='shv'; box.textContent='–'; return; }
   box.innerHTML=V.last.rate.toFixed(1)+'<span class="shu">%</span>';
   const hit=V.last.rate>=RATE_OK*100;
