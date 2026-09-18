@@ -163,10 +163,12 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
   margin-bottom:9px}
 .group .stack{gap:8px}
 #speedHud{display:flex;gap:10px}
-#speedHud .sh{flex:1;background:var(--panel);border:1px solid var(--rule);border-radius:12px;
+#speedHud .sh{flex:1 1 0;min-width:0;overflow:hidden;
+  background:var(--panel);border:1px solid var(--rule);border-radius:12px;
   padding:7px 10px 9px;text-align:center;--lc:var(--chalk)}
 #speedHud .shl{font-size:11px;font-weight:700;color:var(--dim);letter-spacing:.10em}
 #speedHud .shv{font-size:35px;font-weight:800;line-height:1.06;color:var(--chalk);
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;white-space:nowrap;
   font-variant-numeric:tabular-nums}
 #speedHud .shu{font-size:15px;font-weight:700;margin-left:2px;opacity:.75}
 #speedHud .shv.on{color:var(--lc);text-shadow:0 0 20px var(--lc)}
@@ -749,13 +751,20 @@ function recordSurvBest(key,n){
   ST.survBest[key]=n; saveStore();
   return true;
 }
-/** その色をグリッドに使えるか（エンドレスで規定本数に届いたか） */
-function gridReady(key){ return survBestOf(key)>=SURV_GRID; }
-/** グリッドに使う色を選ぶ。ほかの色が選ばれていれば入れ替える。 */
+/** その色をグリッドに使えるか。テストルームでは全部ためせる。 */
+function gridReadyReal(key){ return survBestOf(key)>=SURV_GRID; }
+function gridReady(key){ return gridReadyReal(key) || freeColors(); }
+/** グリッドに使う色を選ぶ。ほかの色が選ばれていれば入れ替える。
+    本当に届いている色のときだけ記録に残す（テストルームの選択は持ち帰らない）。 */
+let savedGrid=null, gridSaved=false;
+function restoreGrid(){
+  if(!gridSaved) return;
+  ST.gridInk=savedGrid; savedGrid=null; gridSaved=false;
+}
 function chooseGridInk(key){
-  if(key&&!(gridReady(key)&&ownedReal(key))) return false;
+  if(key&&!(gridReady(key)&&isOwned(key))) return false;
   ST.gridInk = (ST.gridInk===key) ? null : (key||null);
-  saveStore();
+  if(!key || (gridReadyReal(key)&&ownedReal(key))){ gridSaved=false; savedGrid=null; saveStore(); }
   return true;
 }
 /* チャレンジのベスト＝60秒で確定できた最大本数 */
@@ -1058,7 +1067,7 @@ function toHost(msg){ if(isHost) hostRecv(myId,msg); else send(hostConn,msg); }
 
 /* ---------- 部屋をつくる（この端末が全処理を行う） ---------- */
 function createRoom(){
-  restoreColor();
+  restoreColor(); restoreGrid();
   sessionId++;
   const name=readName(); if(!name) return;
   if(typeof Peer==='undefined'){ net('通信ライブラリを読み込めませんでした。オンラインで開き直してください。'); return; }
@@ -1094,7 +1103,7 @@ function setupHostConn(conn){
 function joinRoom(){
   const code=(document.getElementById('inCode').value||'').trim().toUpperCase();
   if(code===TEST_CODE){ startTestRoom(); return; }
-  restoreColor();
+  restoreColor(); restoreGrid();
   sessionId++;
   const name=readName(); if(!name) return;
   if(code.length<4){ net('あいことばを入力してください。'); return; }
@@ -1622,8 +1631,8 @@ function randomTarget(n,circle){
 function startSolo(){ openLocal(true); }
 function startTestRoom(){ openLocal(false); }
 function openLocal(solo){
-  restoreColor();
-  if(!solo) savedColor=ST.color;
+  restoreColor(); restoreGrid();
+  if(!solo){ savedColor=ST.color; savedGrid=ST.gridInk; gridSaved=true; }
   try{ if(peer) peer.destroy(); }catch(e){}
   peer=null; hostConn=null; conns=new Map(); isHost=false; G=null;
   net('');
@@ -1638,7 +1647,7 @@ function openLocal(solo){
 }
 /* タイトルへ戻る。通信も手元の状態もすべて畳んでからメニューを出す。 */
 function goTitle(){
-  restoreColor();
+  restoreColor(); restoreGrid();
   try{ if(peer) peer.destroy(); }catch(e){}
   peer=null; hostConn=null; conns=new Map(); isHost=false;
   G=null; V=null; T=null;
@@ -2589,7 +2598,7 @@ function dot(ctx,p,color,r,alpha){
 /** 升目に使う色。選ばれていなければ null。 */
 function gridInkStyle(){
   const key=ST.gridInk;
-  if(!key||!gridReady(key)||!ownedReal(key)) return null;
+  if(!key||!gridReady(key)||!isOwned(key)) return null;
   const t=trophyOf(key);
   if(!t) return null;
   const c=colorOf(t);
@@ -3014,7 +3023,11 @@ function updateHud(){
   if(!on) return;
   paintTime();
   $('shCountBox').classList.toggle('hide',!(V.chal||V.surv));
-  if(V.chal||V.surv) $('shCount').innerHTML=(V.total||0)+'<span class="shu">本</span>';
+  if(V.chal||V.surv){
+    const h=(V.total||0)+'<span class="shu">'+unitOf(V)+'</span>';
+    const el=$('shCount');
+    if(el.dataset.v!==h){ el.dataset.v=h; el.innerHTML=h; }
+  }
   const box=$('shRate'), panel=box.parentElement;
   panel.style.removeProperty('--lc');
   if(V.phase==='countdown'){
@@ -3035,27 +3048,32 @@ function updateHud(){
   box.className='shv'+(hit?' on':'');
   if(hit&&V.last.idx>=0) panel.style.setProperty('--lc',lineColor(V.last.idx));
 }
+let lastTimeHTML='';
+function setTimeHTML(el,html,cls){
+  if(el.className!==cls) el.className=cls;
+  if(html!==lastTimeHTML){ el.innerHTML=html; lastTimeHTML=html; }
+}
 function paintTime(){
   const t=$('shTime');
   if(V&&(V.chal||V.surv)&&V.phase==='childDraw'){
     const left=V.surv ? (V.left||0)/1000
                       : Math.max(0,(V.limit||CHAL_MS)-elapsedMs())/1000;
-    t.className='shv'+(left<=10?' on':'');
     t.parentElement.style.setProperty('--lc','var(--signal)');
-    t.innerHTML=left.toFixed(1)+'<span class="shu">秒</span>';
+    setTimeHTML(t, left.toFixed(1)+'<span class="shu">秒</span>', 'shv'+(left<=10?' on':''));
     return;
   }
   if(V&&V.phase==='countdown'){
     const left=Math.max(0,(V.startAt-(Date.now()-clockSkew))/1000);
-    t.className='shv on'; t.parentElement.style.setProperty('--lc','var(--gold)');
-    t.textContent=Math.ceil(left)||1;
+    t.parentElement.style.setProperty('--lc','var(--gold)');
+    setTimeHTML(t, String(Math.ceil(left)||1), 'shv on');
     return;
   }
-  t.className='shv'; t.parentElement.style.removeProperty('--lc');
+  t.parentElement.style.removeProperty('--lc');
   const s=Math.max(0,elapsedMs())/1000;
-  t.innerHTML = s<60
+  setTimeHTML(t, s<60
     ? s.toFixed(2)+'<span class="shu">秒</span>'
-    : Math.floor(s/60)+'<span class="shu">分</span>'+(s%60).toFixed(2).padStart(5,'0')+'<span class="shu">秒</span>';
+    : Math.floor(s/60)+'<span class="shu">分</span>'+(s%60).toFixed(2).padStart(5,'0')+'<span class="shu">秒</span>',
+    'shv');
 }
 
 /* スピードの経過時間。親機の時計を基準にし、端末ごとのズレを補正する。 */
