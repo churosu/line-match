@@ -202,6 +202,9 @@ input:focus{outline:2px solid var(--lock);outline-offset:1px}
 dialog{max-width:460px;width:calc(100% - 28px);background:var(--panel);color:var(--chalk);
   border:1px solid var(--rule);border-radius:16px;padding:18px}
 dialog::backdrop{background:rgba(5,7,12,.72)}
+dialog .rm{display:flex;gap:9px;margin:6px 0;font-size:12.5px;line-height:1.55;color:var(--dim)}
+dialog .rm b{flex:0 0 78px;color:var(--chalk)}
+dialog .rm span{flex:1}
 dialog h3{margin-bottom:8px}
 dialog ol{padding-left:18px;margin:0 0 12px}
 dialog li{margin-bottom:7px}
@@ -446,26 +449,44 @@ dialog li{margin-bottom:7px}
 
 <dialog id="dlgRules">
   <h3>あそびかた</h3>
-  <ol>
-    <li><b>親</b>がお題の図形を描きます。使える直線は<b>子の人数</b>と同じ本数です。子には見えません。</li>
-    <li><b>子</b>は図形を想像して、そのうちの<b>直線を1本だけ</b>自分のキャンバスに描きます。</li>
-    <li>全員そろったら親が「結果を見る」を押します。全員のキャンバスが同時に公開され、お題と重なった部分が<b>その線の色</b>（<b style="color:#ff4136">①</b><b style="color:#4fa3ff">②</b><b style="color:#ffd23f">③</b>…）、外れた部分が白で表示されます。一致率も出ます。</li>
-    <li>一致率が<b>85%</b>を超えた線は<b>確定</b>し、その線の色で全員に見えるようになります。最初に確定させた人が<b>子の人数分</b>の得点。</li>
-    <li>お題の線がすべて確定したらCLEAR。<b>かかったターン数がそのまま親の得点</b>になります。</li>
-    <li>親は1人1回ずつ。全員が親を終えたらゲーム終了、得点を比べます。</li>
-  </ol>
-  <p class="small">線は始点と終点を決めて引きます。タップで始点、もう一度タップで終点。ドラッグでも引けます。短すぎる線は引けません。</p>
-  <p class="small">獲得した色のなかには、線の見た目そのものが変わるものもあります（亀裂・ビート・水晶）。</p>
-  <p class="small"><b>エンドレス</b>：持ち時間15秒から。1本とるごとに +3秒 伸びます。0秒になるまで
-    とれるだけとります。記録は<b>線の色ごと</b>に残り、実績の画面で確認できます。
-    ある色で30本とると、その色を背景の升目に使えるようになります。</p>
-  <p class="small"><b>チャレンジ</b>：60秒で何本とれるかを競います。3つずつ出題され、そろうたびに
-    新しい3つが出ます。画面上に のこり時間・とった本数・直前の一致率が出ます。</p>
-  <p class="small"><b>サークル</b>：直線のかわりに円で遊びます。2点をタップすると、その2点を対角とする正方形に
-    内接する円ができます。進め方・得点はノーマルと同じです。</p>
-  <p class="small"><b>ひとりで遊ぶ</b>：本数をえらぶと、ランダムな角度と長さのお題が用意されます。何ターンで解読できるか挑戦できます。
-    条件を満たすと<b>トロフィー</b>が増え、オプションから自分の線の色を変えられます。記録はこの端末に残ります。</p>
-  <button class="primary" style="width:100%" onclick="document.getElementById('dlgRules').close()">閉じる</button>
+  <p class="small">見えないお題の図形を、線を1本ずつ引いて当てます。
+    お題と <b>85%</b> 以上重なった線が<b>確定</b>します。</p>
+
+  <p class="small"><b>線の引き方</b><br>
+    タップで始点、もう一度タップで終点。ドラッグでも引けます。</p>
+
+  <p class="small"><b>結果の見かた</b><br>
+    重なった部分がお題の色（<b style="color:#ff4136">①</b><b style="color:#4fa3ff">②</b><b style="color:#ffd23f">③</b>…）で光り、外れた部分は白のままです。
+    一致率と、線が「長い／短い」の手がかりも出ます。</p>
+
+  <div class="row" id="rulesTab" style="margin-top:14px">
+    <button class="primary" data-r="solo" style="flex:1">ひとりで</button>
+    <button class="ghost" data-r="multi" style="flex:1">みんなで</button>
+  </div>
+
+  <div id="rulesSolo">
+    <p class="small" style="margin-top:10px">お題はランダムに用意されます。記録はこの端末に残ります。</p>
+    <div class="rm"><b>ノーマル</b><span>本数をえらんで、<b>何ターン</b>で解読できるか挑みます。</span></div>
+    <div class="rm"><b>サークル</b><span>線のかわりに円。2点を対角とする正方形に内接する円ができます。</span></div>
+    <div class="rm"><b>スピード</b><span>引いた瞬間に判定。全部そろえるまでの<b>タイム</b>を計ります。</span></div>
+    <div class="rm"><b>チャレンジ</b><span>60秒で何本とれるか。3つそろうと次の3つが出ます。</span></div>
+    <div class="rm"><b>エンドレス</b><span>持ち時間15秒から。1本とるごとに +3秒。0秒になるまで。</span></div>
+    <p class="small">条件を満たすと<b>線の色</b>が増えます（実績）。見た目そのものが変わる色もあります。
+      エンドレスの記録は<b>色ごと</b>に残り、30本とった色は背景の升目にも使えます。</p>
+  </div>
+
+  <div id="rulesMulti" class="hide">
+    <p class="small" style="margin-top:10px">2〜8人。部屋をつくって<b>あいことば</b>を伝えれば集まれます。</p>
+    <div class="rm"><b>ノーマル</b><span><b>親</b>がお題を描き（本数は子の人数）、<b>子</b>が1本ずつ当てます。
+      先に確定させた人が得点。親は解かれるまでのターン数が得点です。全員が1回ずつ親をやります。</span></div>
+    <div class="rm"><b>サークル</b><span>同じ進めかたで、線のかわりに円を使います。</span></div>
+    <div class="rm"><b>スピード</b><span>全員が同じお題に同時に挑みます。先に全部そろえた人の勝ち。</span></div>
+    <div class="rm"><b>チャレンジ</b><span>60秒。お題は取り合いで、多くとった人の勝ちです。</span></div>
+    <div class="rm"><b>エンドレス</b><span>持ち時間は人ごと。0秒になった人から終わり、多くとった人の勝ちです。</span></div>
+    <p class="small">お題と自分の線は、終わるまで他の人には見えません。</p>
+  </div>
+
+  <button class="primary" style="width:100%;margin-top:12px" onclick="document.getElementById('dlgRules').close()">閉じる</button>
 </dialog>
 
 <dialog id="dlgQuit">
@@ -3789,8 +3810,24 @@ $('soloCount').addEventListener('click',e=>{
   T.n=Math.max(1,Math.min(7,+b.dataset.n));
   sfx('point'); testRender();
 });
-$('btnRules').onclick=()=>$('dlgRules').showModal();
-$('btnRules2').onclick=()=>$('dlgRules').showModal();
+/* あそびかた。ひとり用とみんな用で中身を入れ替える。 */
+function showRules(which){
+  const solo=which!=='multi';
+  $('rulesSolo').classList.toggle('hide',!solo);
+  $('rulesMulti').classList.toggle('hide',solo);
+  Array.prototype.forEach.call($('rulesTab').children,b=>{
+    b.className = (b.dataset.r==='solo')===solo ? 'primary' : 'ghost';
+  });
+}
+function openRules(which){ showRules(which); $('dlgRules').showModal(); }
+$('rulesTab').addEventListener('click',e=>{
+  const b=e.target&&e.target.closest?e.target.closest('button'):null;
+  if(!b||!b.dataset.r) return;
+  showRules(b.dataset.r); sfx('point');
+});
+/* ロビーやゲーム中から開いたときは、みんな用を先に見せる */
+$('btnRules').onclick=()=>openRules('solo');
+$('btnRules2').onclick=()=>openRules(V&&!V.solo&&!V.test?'multi':'solo');
 $('btnAwards').onclick=openAwards;
 $('btnLog').onclick=openLog;
 $('btnLogClose').onclick=()=>{ show('sc-menu'); sfx('clear'); };
